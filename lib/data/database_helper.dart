@@ -1,0 +1,413 @@
+import 'package:path/path.dart';
+import 'package:sqflite/sqflite.dart';
+
+import '../models/app_models.dart';
+import 'seed_data.dart';
+
+class DatabaseHelper {
+  static final DatabaseHelper instance = DatabaseHelper._init();
+  static Database? _database;
+
+  DatabaseHelper._init();
+
+  Future<Database> get database async {
+    if (_database != null) return _database!;
+    _database = await _initDB('pet_time_lock.db');
+    return _database!;
+  }
+
+  Future<Database> _initDB(String filePath) async {
+    final dbPath = await getDatabasesPath();
+    final path = join(dbPath, filePath);
+
+    return await openDatabase(
+      path,
+      version: 2,
+      onCreate: _createDB,
+      onUpgrade: _upgradeDB,
+    );
+  }
+
+  Future _upgradeDB(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // 迁移旧的 appearance_json，确保是合法 JSON
+      final pets = await db.query('pet_state');
+      for (final map in pets) {
+        final appearanceJson = map['appearance_json'] as String?;
+        if (appearanceJson == null || appearanceJson == '{}') {
+          final pet = PetState.fromMap(map);
+          final updated = pet.copyWithAppearance(const PetAppearance());
+          await db.update(
+            'pet_state',
+            updated.toMap(),
+            where: 'id = ?',
+            whereArgs: [pet.id],
+          );
+        }
+      }
+    }
+  }
+
+  Future _createDB(Database db, int version) async {
+    await db.execute('''
+      CREATE TABLE pet_state (
+        id INTEGER PRIMARY KEY,
+        stage INTEGER DEFAULT 0,
+        health INTEGER DEFAULT 100,
+        happiness INTEGER DEFAULT 100,
+        hunger INTEGER DEFAULT 100,
+        knowledge INTEGER DEFAULT 0,
+        discipline INTEGER DEFAULT 50,
+        growth_xp INTEGER DEFAULT 0,
+        name TEXT,
+        appearance_json TEXT DEFAULT '{}',
+        current_grade INTEGER NOT NULL,
+        created_at TEXT,
+        last_updated_at TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE app_limits (
+        package_name TEXT PRIMARY KEY,
+        app_name TEXT,
+        category TEXT,
+        daily_limit_minutes INTEGER,
+        is_active INTEGER DEFAULT 1
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE usage_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        package_name TEXT,
+        start_time TEXT,
+        end_time TEXT,
+        duration_seconds INTEGER,
+        date TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE educational_content (
+        id TEXT PRIMARY KEY,
+        type TEXT,
+        title TEXT,
+        content TEXT,
+        question TEXT,
+        options TEXT,
+        correct_answer TEXT,
+        explanation TEXT,
+        grade INTEGER,
+        subject TEXT,
+        estimated_seconds INTEGER,
+        requires_interaction INTEGER DEFAULT 0,
+        is_local INTEGER DEFAULT 1,
+        is_downloaded INTEGER DEFAULT 1
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE user_progress (
+        content_id TEXT PRIMARY KEY,
+        completed INTEGER DEFAULT 0,
+        score INTEGER,
+        grade INTEGER,
+        last_attempt TEXT,
+        time_spent_seconds INTEGER DEFAULT 0
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE persuasion_quotes (
+        id TEXT PRIMARY KEY,
+        content TEXT NOT NULL,
+        type TEXT NOT NULL,
+        grade INTEGER NOT NULL,
+        scene TEXT NOT NULL,
+        feedback TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE focus_sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        start_time TEXT,
+        end_time TEXT,
+        planned_duration_minutes INTEGER,
+        actual_duration_minutes INTEGER,
+        success INTEGER DEFAULT 1,
+        pet_xp_gained INTEGER
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE sync_queue (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        table_name TEXT,
+        record_id TEXT,
+        operation TEXT,
+        payload_json TEXT,
+        created_at TEXT,
+        retry_count INTEGER DEFAULT 0
+      )
+    ''');
+
+    await _seedData(db);
+  }
+
+  Future _seedData(Database db) async {
+    final batch = db.batch();
+
+    for (final content in SeedData.educationalContent) {
+      batch.insert('educational_content', content.toMap());
+    }
+
+    for (final quote in SeedData.persuasionQuotes) {
+      batch.insert('persuasion_quotes', quote.toMap());
+    }
+
+    await batch.commit(noResult: true);
+  }
+
+  // Pet State
+  Future<PetState?> getPetState() async {
+    final db = await database;
+    final maps = await db.query('pet_state', limit: 1);
+    if (maps.isNotEmpty) {
+      return PetState.fromMap(maps.first);
+    }
+    return null;
+  }
+
+  Future<PetState> createPetState(int grade, {String? name}) async {
+    final db = await database;
+    final petState = PetState(currentGrade: grade, name: name ?? '小宠');
+    await db.insert('pet_state', petState.toMap());
+    return petState;
+  }
+
+  Future<int> updatePetState(PetState petState) async {
+    final db = await database;
+    return await db.update(
+      'pet_state',
+      petState.copyWith(lastUpdatedAt: DateTime.now()).toMap(),
+      where: 'id = ?',
+      whereArgs: [petState.id],
+    );
+  }
+
+  // Educational Content
+  Future<List<EducationalContent>> getEducationalContentByGrade(int grade) async {
+    final db = await database;
+    final maps = await db.query(
+      'educational_content',
+      where: 'grade = ?',
+      whereArgs: [grade],
+    );
+    return maps.map((map) => EducationalContent.fromMap(map)).toList();
+  }
+
+  Future<EducationalContent?> getEducationalContentById(String id) async {
+    final db = await database;
+    final maps = await db.query(
+      'educational_content',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    if (maps.isNotEmpty) {
+      return EducationalContent.fromMap(maps.first);
+    }
+    return null;
+  }
+
+  Future<EducationalContent?> getRandomContentByGrade(int grade) async {
+    final db = await database;
+    final maps = await db.rawQuery(
+      'SELECT * FROM educational_content WHERE grade = ? ORDER BY RANDOM() LIMIT 1',
+      [grade],
+    );
+    if (maps.isNotEmpty) {
+      return EducationalContent.fromMap(maps.first);
+    }
+    return null;
+  }
+
+  Future<List<EducationalContent>> getEducationalContentByGradeAndSubject(
+    int grade,
+    String subject,
+  ) async {
+    final db = await database;
+    final maps = await db.query(
+      'educational_content',
+      where: 'grade = ? AND subject = ?',
+      whereArgs: [grade, subject],
+    );
+    return maps.map((map) => EducationalContent.fromMap(map)).toList();
+  }
+
+  Future<EducationalContent?> getRandomContentByGradeAndSubject(
+    int grade,
+    String subject,
+  ) async {
+    final db = await database;
+    final maps = await db.rawQuery(
+      'SELECT * FROM educational_content WHERE grade = ? AND subject = ? ORDER BY RANDOM() LIMIT 1',
+      [grade, subject],
+    );
+    if (maps.isNotEmpty) {
+      return EducationalContent.fromMap(maps.first);
+    }
+    return null;
+  }
+
+  // Persuasion Quotes
+  Future<List<PersuasionQuote>> getPersuasionQuotesByGrade(int grade, String scene) async {
+    final db = await database;
+    final maps = await db.query(
+      'persuasion_quotes',
+      where: 'grade = ? AND scene = ?',
+      whereArgs: [grade, scene],
+    );
+    return maps.map((map) => PersuasionQuote.fromMap(map)).toList();
+  }
+
+  Future<PersuasionQuote?> getRandomQuote(int grade, String scene) async {
+    final db = await database;
+    final maps = await db.rawQuery(
+      'SELECT * FROM persuasion_quotes WHERE grade = ? AND scene = ? ORDER BY RANDOM() LIMIT 1',
+      [grade, scene],
+    );
+    if (maps.isNotEmpty) {
+      return PersuasionQuote.fromMap(maps.first);
+    }
+    return null;
+  }
+
+  // App Limits
+  Future<List<AppLimit>> getAppLimits() async {
+    final db = await database;
+    final maps = await db.query('app_limits');
+    return maps.map((map) => AppLimit.fromMap(map)).toList();
+  }
+
+  Future<int> insertOrUpdateAppLimit(AppLimit limit) async {
+    final db = await database;
+    return await db.insert(
+      'app_limits',
+      limit.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  // Usage Logs
+  Future<int> insertUsageLog(UsageLog log) async {
+    final db = await database;
+    return await db.insert('usage_logs', log.toMap());
+  }
+
+  Future<List<UsageLog>> getUsageLogsByDate(String date) async {
+    final db = await database;
+    final maps = await db.query(
+      'usage_logs',
+      where: 'date = ?',
+      whereArgs: [date],
+    );
+    return maps.map((map) => UsageLog.fromMap(map)).toList();
+  }
+
+  Future<Map<String, int>> getTodayUsageByPackage() async {
+    final db = await database;
+    final today = _formatDate(DateTime.now());
+    final maps = await db.rawQuery('''
+      SELECT package_name, SUM(duration_seconds) as total_seconds
+      FROM usage_logs
+      WHERE date = ?
+      GROUP BY package_name
+    ''', [today]);
+
+    final result = <String, int>{};
+    for (final map in maps) {
+      result[map['package_name'] as String] = map['total_seconds'] as int? ?? 0;
+    }
+    return result;
+  }
+
+  // Focus Sessions
+  Future<int> insertFocusSession(FocusSession session) async {
+    final db = await database;
+    return await db.insert('focus_sessions', session.toMap());
+  }
+
+  Future<int> updateFocusSession(FocusSession session) async {
+    final db = await database;
+    return await db.update(
+      'focus_sessions',
+      session.toMap(),
+      where: 'id = ?',
+      whereArgs: [session.id],
+    );
+  }
+
+  Future<List<FocusSession>> getFocusSessionsByDate(String date) async {
+    final db = await database;
+    final maps = await db.rawQuery('''
+      SELECT * FROM focus_sessions
+      WHERE date(start_time) = ?
+      ORDER BY start_time DESC
+    ''', [date]);
+    return maps.map((map) => FocusSession.fromMap(map)).toList();
+  }
+
+  // User Progress
+  Future<Map<String, UserProgress>> getAllProgress() async {
+    final db = await database;
+    final maps = await db.query('user_progress');
+    return {
+      for (final map in maps) map['content_id'] as String: UserProgress.fromMap(map)
+    };
+  }
+
+  Future<UserProgress?> getProgress(String contentId) async {
+    final db = await database;
+    final maps = await db.query(
+      'user_progress',
+      where: 'content_id = ?',
+      whereArgs: [contentId],
+      limit: 1,
+    );
+    if (maps.isNotEmpty) {
+      return UserProgress.fromMap(maps.first);
+    }
+    return null;
+  }
+
+  Future<int> insertOrUpdateProgress(UserProgress progress) async {
+    final db = await database;
+    return await db.insert(
+      'user_progress',
+      progress.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<int> getCompletedContentCountToday() async {
+    final db = await database;
+    final today = _formatDate(DateTime.now());
+    final result = await db.rawQuery('''
+      SELECT COUNT(*) as count FROM user_progress
+      WHERE completed = 1 AND date(last_attempt) = ?
+    ''', [today]);
+    return (result.first['count'] as int?) ?? 0;
+  }
+
+  static String _formatDate(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
+
+  Future close() async {
+    final db = await database;
+    db.close();
+  }
+}
