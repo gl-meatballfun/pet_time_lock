@@ -4,6 +4,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/database_helper.dart';
 import '../models/app_models.dart';
+import '../models/overlay_payload.dart';
+import '../services/overlay_service.dart';
 
 part 'pet_state.dart';
 
@@ -334,6 +336,7 @@ class PetCubit extends Cubit<PetManagerState> {
       previousStage: didEvolve ? updated.stage : null,
     ));
     if (didEvolve) {
+      OverlayService().showOverlayWithTrigger(OverlayTrigger.evolution);
       emit(state.copyWith(justEvolved: false, previousStage: null));
     }
 

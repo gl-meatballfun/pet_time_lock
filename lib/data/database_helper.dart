@@ -22,7 +22,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -46,6 +46,92 @@ class DatabaseHelper {
         }
       }
     }
+
+    if (oldVersion < 3) {
+      // 新增货币与积分字段
+      await db.execute('ALTER TABLE pet_state ADD COLUMN growth_coins INTEGER DEFAULT 0');
+      await db.execute('ALTER TABLE pet_state ADD COLUMN humanities_points INTEGER DEFAULT 0');
+      await db.execute('ALTER TABLE pet_state ADD COLUMN science_points INTEGER DEFAULT 0');
+      await db.execute('ALTER TABLE pet_state ADD COLUMN health_points INTEGER DEFAULT 0');
+
+      // 扩展 educational_content
+      await db.execute('ALTER TABLE educational_content ADD COLUMN time_limit_seconds INTEGER');
+      await db.execute('ALTER TABLE educational_content ADD COLUMN question_type TEXT DEFAULT "choice"');
+
+      // 新增商店、背包、任务、奖励日志、错题本表
+      await db.execute('''
+        CREATE TABLE shop_items (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          description TEXT,
+          icon_emoji TEXT,
+          category TEXT,
+          growth_coins_cost INTEGER DEFAULT 0,
+          humanities_points_cost INTEGER DEFAULT 0,
+          science_points_cost INTEGER DEFAULT 0,
+          health_points_cost INTEGER DEFAULT 0,
+          effect_health INTEGER DEFAULT 0,
+          effect_happiness INTEGER DEFAULT 0,
+          effect_hunger INTEGER DEFAULT 0,
+          effect_knowledge INTEGER DEFAULT 0,
+          required_stage INTEGER DEFAULT 0,
+          is_consumable INTEGER DEFAULT 1,
+          appearance_unlock TEXT
+        )
+      ''');
+
+      await db.execute('''
+        CREATE TABLE inventory (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          item_id TEXT NOT NULL UNIQUE,
+          quantity INTEGER DEFAULT 1,
+          acquired_at TEXT,
+          is_equipped INTEGER DEFAULT 0
+        )
+      ''');
+
+      await db.execute('''
+        CREATE TABLE daily_tasks (
+          id TEXT PRIMARY KEY,
+          title TEXT,
+          description TEXT,
+          task_type TEXT,
+          subject TEXT,
+          target_count INTEGER,
+          current_count INTEGER DEFAULT 0,
+          completed INTEGER DEFAULT 0,
+          completed_at TEXT,
+          reward_growth_coins INTEGER DEFAULT 0,
+          reward_health_points INTEGER DEFAULT 0,
+          assigned_date TEXT
+        )
+      ''');
+
+      await db.execute('''
+        CREATE TABLE reward_logs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          source TEXT,
+          growth_coins_delta INTEGER DEFAULT 0,
+          humanities_points_delta INTEGER DEFAULT 0,
+          science_points_delta INTEGER DEFAULT 0,
+          health_points_delta INTEGER DEFAULT 0,
+          description TEXT,
+          created_at TEXT
+        )
+      ''');
+
+      await db.execute('''
+        CREATE TABLE wrong_answers (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          content_id TEXT NOT NULL UNIQUE,
+          subject TEXT,
+          mistake_count INTEGER DEFAULT 1,
+          last_mistake_at TEXT
+        )
+      ''');
+
+      await _seedShopItems(db);
+    }
   }
 
   Future _createDB(Database db, int version) async {
@@ -59,6 +145,10 @@ class DatabaseHelper {
         knowledge INTEGER DEFAULT 0,
         discipline INTEGER DEFAULT 50,
         growth_xp INTEGER DEFAULT 0,
+        growth_coins INTEGER DEFAULT 0,
+        humanities_points INTEGER DEFAULT 0,
+        science_points INTEGER DEFAULT 0,
+        health_points INTEGER DEFAULT 0,
         name TEXT,
         appearance_json TEXT DEFAULT '{}',
         current_grade INTEGER NOT NULL,
@@ -101,7 +191,9 @@ class DatabaseHelper {
         grade INTEGER,
         subject TEXT,
         estimated_seconds INTEGER,
+        time_limit_seconds INTEGER,
         requires_interaction INTEGER DEFAULT 0,
+        question_type TEXT DEFAULT 'choice',
         is_local INTEGER DEFAULT 1,
         is_downloaded INTEGER DEFAULT 1
       )
@@ -153,6 +245,77 @@ class DatabaseHelper {
       )
     ''');
 
+    await db.execute('''
+      CREATE TABLE shop_items (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        icon_emoji TEXT,
+        category TEXT,
+        growth_coins_cost INTEGER DEFAULT 0,
+        humanities_points_cost INTEGER DEFAULT 0,
+        science_points_cost INTEGER DEFAULT 0,
+        health_points_cost INTEGER DEFAULT 0,
+        effect_health INTEGER DEFAULT 0,
+        effect_happiness INTEGER DEFAULT 0,
+        effect_hunger INTEGER DEFAULT 0,
+        effect_knowledge INTEGER DEFAULT 0,
+        required_stage INTEGER DEFAULT 0,
+        is_consumable INTEGER DEFAULT 1,
+        appearance_unlock TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE inventory (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        item_id TEXT NOT NULL UNIQUE,
+        quantity INTEGER DEFAULT 1,
+        acquired_at TEXT,
+        is_equipped INTEGER DEFAULT 0
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE daily_tasks (
+        id TEXT PRIMARY KEY,
+        title TEXT,
+        description TEXT,
+        task_type TEXT,
+        subject TEXT,
+        target_count INTEGER,
+        current_count INTEGER DEFAULT 0,
+        completed INTEGER DEFAULT 0,
+        completed_at TEXT,
+        reward_growth_coins INTEGER DEFAULT 0,
+        reward_health_points INTEGER DEFAULT 0,
+        assigned_date TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE reward_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source TEXT,
+        growth_coins_delta INTEGER DEFAULT 0,
+        humanities_points_delta INTEGER DEFAULT 0,
+        science_points_delta INTEGER DEFAULT 0,
+        health_points_delta INTEGER DEFAULT 0,
+        description TEXT,
+        created_at TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE wrong_answers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        content_id TEXT NOT NULL UNIQUE,
+        subject TEXT,
+        mistake_count INTEGER DEFAULT 1,
+        last_mistake_at TEXT
+      )
+    ''');
+
     await _seedData(db);
   }
 
@@ -168,6 +331,13 @@ class DatabaseHelper {
     }
 
     await batch.commit(noResult: true);
+
+    await _seedShopItems(db);
+  }
+
+  Future _seedShopItems(Database db) async {
+    // Shop items are seeded here once the shop system is implemented.
+    // For now the inventory tables exist but remain empty.
   }
 
   // Pet State

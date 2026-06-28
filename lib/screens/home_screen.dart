@@ -4,6 +4,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../bloc/content_cubit.dart';
 import '../bloc/pet_cubit.dart';
 import '../models/app_models.dart';
+import '../models/overlay_payload.dart';
+import '../services/overlay_service.dart';
 import '../widgets/animated_pet_widget.dart';
 import 'content_card_dialog.dart';
 import 'focus_screen.dart';
@@ -56,19 +58,62 @@ class _HomeContent extends StatefulWidget {
 
 class _HomeContentState extends State<_HomeContent> {
   bool _showOverLimit = false;
+  bool _overlayEnabled = false;
+  PetState? _previousPetState;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOverlayState();
+  }
+
+  Future<void> _loadOverlayState() async {
+    final enabled = await OverlayService().isEnabled();
+    if (mounted) {
+      setState(() => _overlayEnabled = enabled);
+    }
+  }
+
+  Future<void> _toggleOverlay() async {
+    final overlayService = OverlayService();
+    if (!overlayService.isSupported) return;
+
+    final newValue = !_overlayEnabled;
+    final success = await overlayService.setEnabled(newValue);
+    if (mounted) {
+      setState(() => _overlayEnabled = success ? newValue : _overlayEnabled);
+    }
+  }
 
   String _stageName(int stage) {
     const names = ['蛋', '婴儿', '幼儿', '少年', '成年'];
     return names[stage.clamp(0, names.length - 1)];
   }
 
+  void _refreshOverlayIfNeeded(PetState? current) {
+    if (current == null) return;
+    final previous = _previousPetState;
+    if (previous == null ||
+        previous.health != current.health ||
+        previous.happiness != current.happiness ||
+        previous.hunger != current.hunger ||
+        previous.stage != current.stage) {
+      OverlayService().refreshOverlayPet();
+    }
+    _previousPetState = current;
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocListener<PetCubit, PetManagerState>(
       listenWhen: (previous, current) =>
-          current.justEvolved && current.petState != null,
+          current.petState != previous.petState ||
+          (current.justEvolved && current.petState != null),
       listener: (context, state) {
-        _showEvolutionDialog(state.petState!.stage);
+        _refreshOverlayIfNeeded(state.petState);
+        if (state.justEvolved && state.petState != null) {
+          _showEvolutionDialog(state.petState!.stage);
+        }
       },
       child: Scaffold(
         body: Container(
@@ -123,17 +168,37 @@ class _HomeContentState extends State<_HomeContent> {
               ),
             ],
           ),
-          IconButton(
-            icon: const Icon(Icons.settings, size: 28),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SettingsScreen()),
-              );
-            },
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildOverlayToggle(),
+              IconButton(
+                icon: const Icon(Icons.settings, size: 28),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                  );
+                },
+              ),
+            ],
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildOverlayToggle() {
+    final overlayService = OverlayService();
+    if (!overlayService.isSupported) return const SizedBox.shrink();
+
+    return IconButton(
+      icon: Icon(
+        _overlayEnabled ? Icons.pets : Icons.pets_outlined,
+        color: _overlayEnabled ? Colors.blue : Colors.grey,
+      ),
+      tooltip: _overlayEnabled ? '悬浮宠物已开启' : '开启悬浮宠物',
+      onPressed: _toggleOverlay,
     );
   }
 
@@ -336,6 +401,7 @@ class _HomeContentState extends State<_HomeContent> {
       widget.petState.currentGrade,
       scene: 'over_limit',
     );
+    OverlayService().showOverlayWithTrigger(OverlayTrigger.overLimit);
     await showDialog(
       context: context,
       builder: (_) => BlocProvider.value(

@@ -43,6 +43,11 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            OverlayPlugin.CHANNEL
+        ).setMethodCallHandler(OverlayPlugin(this))
     }
 
     private fun hasUsageStatsPermission(): Boolean {

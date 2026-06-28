@@ -76,6 +76,10 @@ class PetState {
   final int knowledge;
   final int discipline;
   final int growthXp;
+  final int growthCoins;
+  final int humanitiesPoints;
+  final int sciencePoints;
+  final int healthPoints;
   final String? name;
   final String appearanceJson;
   final int currentGrade;
@@ -91,6 +95,10 @@ class PetState {
     this.knowledge = 0,
     this.discipline = 50,
     this.growthXp = 0,
+    this.growthCoins = 0,
+    this.humanitiesPoints = 0,
+    this.sciencePoints = 0,
+    this.healthPoints = 0,
     this.name,
     this.appearanceJson = '{}',
     this.currentGrade = 1,
@@ -108,6 +116,10 @@ class PetState {
     int? knowledge,
     int? discipline,
     int? growthXp,
+    int? growthCoins,
+    int? humanitiesPoints,
+    int? sciencePoints,
+    int? healthPoints,
     String? name,
     String? appearanceJson,
     int? currentGrade,
@@ -123,6 +135,10 @@ class PetState {
       knowledge: knowledge ?? this.knowledge,
       discipline: discipline ?? this.discipline,
       growthXp: growthXp ?? this.growthXp,
+      growthCoins: growthCoins ?? this.growthCoins,
+      humanitiesPoints: humanitiesPoints ?? this.humanitiesPoints,
+      sciencePoints: sciencePoints ?? this.sciencePoints,
+      healthPoints: healthPoints ?? this.healthPoints,
       name: name ?? this.name,
       appearanceJson: appearanceJson ?? this.appearanceJson,
       currentGrade: currentGrade ?? this.currentGrade,
@@ -141,6 +157,10 @@ class PetState {
       'knowledge': knowledge,
       'discipline': discipline,
       'growth_xp': growthXp,
+      'growth_coins': growthCoins,
+      'humanities_points': humanitiesPoints,
+      'science_points': sciencePoints,
+      'health_points': healthPoints,
       'name': name,
       'appearance_json': appearanceJson,
       'current_grade': currentGrade,
@@ -159,6 +179,10 @@ class PetState {
       knowledge: map['knowledge'] as int? ?? 0,
       discipline: map['discipline'] as int? ?? 50,
       growthXp: map['growth_xp'] as int? ?? 0,
+      growthCoins: map['growth_coins'] as int? ?? 0,
+      humanitiesPoints: map['humanities_points'] as int? ?? 0,
+      sciencePoints: map['science_points'] as int? ?? 0,
+      healthPoints: map['health_points'] as int? ?? 0,
       name: map['name'] as String?,
       appearanceJson: map['appearance_json'] as String? ?? '{}',
       currentGrade: map['current_grade'] as int? ?? 1,
@@ -195,6 +219,8 @@ class InteractionResult {
 
 enum ContentType { poem, english, math, physics }
 
+enum QuestionType { choice, fillBlank, recitation }
+
 class EducationalContent {
   final String id;
   final ContentType type;
@@ -207,7 +233,9 @@ class EducationalContent {
   final int grade;
   final String subject;
   final int estimatedSeconds;
+  final int? timeLimitSeconds;
   final bool requiresInteraction;
+  final QuestionType questionType;
 
   const EducationalContent({
     required this.id,
@@ -221,7 +249,9 @@ class EducationalContent {
     required this.grade,
     required this.subject,
     this.estimatedSeconds = 30,
+    this.timeLimitSeconds,
     this.requiresInteraction = false,
+    this.questionType = QuestionType.choice,
   });
 
   Map<String, dynamic> toMap() {
@@ -237,7 +267,9 @@ class EducationalContent {
       'grade': grade,
       'subject': subject,
       'estimated_seconds': estimatedSeconds,
+      'time_limit_seconds': timeLimitSeconds,
       'requires_interaction': requiresInteraction ? 1 : 0,
+      'question_type': questionType.name,
     };
   }
 
@@ -256,7 +288,11 @@ class EducationalContent {
       grade: map['grade'] as int,
       subject: map['subject'] as String,
       estimatedSeconds: map['estimated_seconds'] as int? ?? 30,
+      timeLimitSeconds: map['time_limit_seconds'] as int?,
       requiresInteraction: (map['requires_interaction'] as int? ?? 0) == 1,
+      questionType: map['question_type'] == null
+          ? QuestionType.choice
+          : QuestionType.values.byName(map['question_type'] as String),
     );
   }
 }

@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../data/database_helper.dart';
 import '../models/app_models.dart';
 import '../services/notification_service.dart';
+import '../services/overlay_service.dart';
 import '../services/screen_time_service.dart';
 import 'grade_select_screen.dart';
 
@@ -22,6 +23,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   List<AppLimit> _appLimits = [];
   bool _notificationsEnabled = false;
+  bool _overlayEnabled = false;
+  bool _overlaySupported = false;
+  bool _overlayPermissionGranted = false;
   int _dailyReminderHour = 21;
   int _dailyReminderMinute = 30;
 
@@ -35,12 +39,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future _loadSettings() async {
     final prefs = await _prefsFuture;
     final limits = await _db.getAppLimits();
+    final overlayService = OverlayService();
     setState(() {
       _appLimits = limits;
       _notificationsEnabled = prefs.getBool('notifications_enabled') ?? false;
       _dailyReminderHour = prefs.getInt('daily_reminder_hour') ?? 21;
       _dailyReminderMinute = prefs.getInt('daily_reminder_minute') ?? 30;
+      _overlayEnabled = prefs.getBool('overlay_enabled') ?? false;
+      _overlaySupported = overlayService.isSupported;
     });
+    if (_overlaySupported) {
+      final permitted = await overlayService.hasPermission();
+      setState(() => _overlayPermissionGranted = permitted);
+    }
   }
 
   Future _saveNotificationSettings() async {
@@ -58,6 +69,57 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } else {
       await _notificationService.cancelAll();
     }
+  }
+
+  Future<void> _onOverlayChanged(bool enabled) async {
+    final overlayService = OverlayService();
+    if (!overlayService.isSupported) return;
+
+    if (enabled) {
+      final permitted = await overlayService.hasPermission();
+      if (!permitted) {
+        if (mounted) {
+          _showOverlayPermissionDialog();
+        }
+        return;
+      }
+    }
+
+    final success = await overlayService.setEnabled(enabled);
+    if (mounted) {
+      setState(() {
+        _overlayEnabled = success ? enabled : false;
+        if (success && enabled) _overlayPermissionGranted = true;
+      });
+    }
+  }
+
+  void _showOverlayPermissionDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('开启悬浮宠物'),
+        content: const Text(
+          '宠物需要「悬浮窗」权限才能陪伴你到桌面和其他应用。\n\n'
+          '接下来会跳转系统设置，请允许本应用在其他应用上层显示。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              OverlayService().requestPermission().then((_) {
+                // The user must come back and toggle again after granting.
+              });
+            },
+            child: const Text('去开启'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future _addAppLimit() async {
@@ -237,6 +299,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
                 child: const Text('修改'),
               ),
+            ),
+          _buildSectionTitle('悬浮宠物'),
+          if (!_overlaySupported)
+            const ListTile(
+              leading: Icon(Icons.phone_iphone),
+              title: Text('悬浮宠物'),
+              subtitle: Text('iOS 系统暂不支持全局悬浮窗，可在 App 内与宠物互动'),
+            )
+          else
+            SwitchListTile(
+              title: const Text('桌面悬浮宠物'),
+              subtitle: Text(
+                _overlayPermissionGranted
+                    ? '宠物会常驻桌面，随时陪伴你'
+                    : '需要悬浮窗权限，开启后宠物会出现在桌面',
+              ),
+              value: _overlayEnabled,
+              onChanged: (value) async {
+                await _onOverlayChanged(value);
+              },
             ),
           _buildSectionTitle('数据'),
           ListTile(

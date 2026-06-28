@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../bloc/pet_cubit.dart';
+import '../models/overlay_payload.dart';
 import '../services/notification_service.dart';
+import '../services/overlay_service.dart';
 import '../services/screen_time_service.dart';
 
 class FocusScreen extends StatefulWidget {
@@ -70,6 +72,7 @@ class _FocusScreenState extends State<FocusScreen>
     context.read<PetCubit>().completeFocusSession(_selectedDuration);
     context.read<ScreenTimeService>().stopFocusMode();
     NotificationService().showFocusCompleteNotification();
+    OverlayService().showOverlayWithTrigger(OverlayTrigger.focusComplete);
   }
 
   void _cancelFocus() {
