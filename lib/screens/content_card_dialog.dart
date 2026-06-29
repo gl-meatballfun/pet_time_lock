@@ -3,7 +3,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../bloc/content_cubit.dart';
 import '../bloc/pet_cubit.dart';
+import '../bloc/task_cubit.dart';
+import '../data/database_helper.dart';
 import '../models/app_models.dart';
+import '../models/task_models.dart';
 
 class ContentCardDialog extends StatefulWidget {
   const ContentCardDialog({super.key});
@@ -234,16 +237,29 @@ class _ContentCardDialogState extends State<ContentCardDialog>
       _isCorrect = isCorrect;
     });
 
+    final content = context.read<ContentCubit>().state.currentContent;
+    if (content == null) return;
+
     if (isCorrect) {
-      context.read<PetCubit>().answerQuestionCorrectly();
-      // Record progress for learning center
-      final content = context.read<ContentCubit>().state.currentContent;
-      if (content != null) {
-        context.read<ContentCubit>().recordProgress(content.id, true, score: 100);
-      }
+      context.read<PetCubit>().answerQuestionCorrectly(content.subject, content.grade);
+      context.read<ContentCubit>().recordProgress(content.id, true, score: 100);
+
+      // 通知任务系统
+      final taskCubit = context.read<TaskCubit>();
+      taskCubit.incrementTaskProgress(TaskType.answerQuestions, subject: content.subject);
+      taskCubit.incrementTaskProgress(TaskType.completeAnyContent);
+
       Future.delayed(const Duration(milliseconds: 1200), () {
         if (context.mounted) Navigator.pop(context);
       });
+    } else {
+      DatabaseHelper.instance.insertOrUpdateWrongAnswer(
+        WrongAnswer(
+          contentId: content.id,
+          subject: content.subject,
+          lastMistakeAt: DateTime.now(),
+        ),
+      );
     }
   }
 

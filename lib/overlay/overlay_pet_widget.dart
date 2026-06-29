@@ -14,6 +14,7 @@ class OverlayPetWidget extends StatefulWidget {
   final VoidCallback onTap;
   final VoidCallback? onDrag;
   final String? triggerMessage;
+  final String? equippedAccessory;
 
   const OverlayPetWidget({
     super.key,
@@ -22,6 +23,7 @@ class OverlayPetWidget extends StatefulWidget {
     this.onDrag,
     this.isOverLimit = false,
     this.triggerMessage,
+    this.equippedAccessory,
   });
 
   @override
@@ -100,6 +102,9 @@ class _OverlayPetWidgetState extends State<OverlayPetWidget>
   }
 
   String _getAccessory() {
+    if (widget.equippedAccessory != null && widget.equippedAccessory!.isNotEmpty) {
+      return widget.equippedAccessory!;
+    }
     final accessories = widget.petState.appearance.unlockedAccessories;
     if (accessories.isEmpty) return '';
     return accessories.last;

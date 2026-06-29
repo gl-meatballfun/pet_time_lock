@@ -2,17 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../bloc/content_cubit.dart';
+import '../bloc/inventory_cubit.dart';
 import '../bloc/pet_cubit.dart';
+import '../bloc/task_cubit.dart';
 import '../models/app_models.dart';
 import '../models/overlay_payload.dart';
+import '../models/task_models.dart';
 import '../services/overlay_service.dart';
 import '../widgets/animated_pet_widget.dart';
 import 'content_card_dialog.dart';
+import 'daily_tasks_screen.dart';
 import 'focus_screen.dart';
 import 'grade_select_screen.dart';
+import 'inventory_screen.dart';
 import 'learning_center_screen.dart';
 import 'quote_card_dialog.dart';
 import 'settings_screen.dart';
+import 'shop_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -65,6 +71,7 @@ class _HomeContentState extends State<_HomeContent> {
   void initState() {
     super.initState();
     _loadOverlayState();
+    context.read<InventoryCubit>().loadInventory();
   }
 
   Future<void> _loadOverlayState() async {
@@ -115,30 +122,40 @@ class _HomeContentState extends State<_HomeContent> {
           _showEvolutionDialog(state.petState!.stage);
         }
       },
-      child: Scaffold(
-        body: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Colors.blue[50]!, Colors.white],
-            ),
-          ),
-          child: SafeArea(
-            child: Column(
-              children: [
-                _buildAppBar(),
-                _buildGradeAndStageChip(),
-                _buildStatsBar(),
-                Expanded(
-                  child: _buildPetArea(),
+      child: BlocBuilder<InventoryCubit, InventoryState>(
+        builder: (context, inventoryState) {
+          final equippedItem = inventoryState.items.where((i) => i.isEquipped).firstOrNull;
+          final equippedAccessory = equippedItem != null
+              ? inventoryState.itemDetails[equippedItem.itemId]?.appearanceUnlock
+              : null;
+
+          return Scaffold(
+            body: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.blue[50]!, Colors.white],
                 ),
-                _buildActionButtons(),
-                const SizedBox(height: 24),
-              ],
+              ),
+              child: SafeArea(
+                child: Column(
+                  children: [
+                    _buildAppBar(),
+                    _buildCurrencyBar(),
+                    _buildGradeAndStageChip(),
+                    _buildStatsBar(),
+                    Expanded(
+                      child: _buildPetArea(equippedAccessory ?? ''),
+                    ),
+                    _buildActionButtons(),
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
@@ -173,6 +190,16 @@ class _HomeContentState extends State<_HomeContent> {
             children: [
               _buildOverlayToggle(),
               IconButton(
+                icon: const Icon(Icons.backpack, size: 28),
+                tooltip: '我的背包',
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const InventoryScreen()),
+                  );
+                },
+              ),
+              IconButton(
                 icon: const Icon(Icons.settings, size: 28),
                 onPressed: () {
                   Navigator.push(
@@ -199,6 +226,57 @@ class _HomeContentState extends State<_HomeContent> {
       ),
       tooltip: _overlayEnabled ? '悬浮宠物已开启' : '开启悬浮宠物',
       onPressed: _toggleOverlay,
+    );
+  }
+
+  Widget _buildCurrencyBar() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildCurrencyItem('${widget.petState.growthCoins}', '成长币', Icons.monetization_on, Colors.amber),
+          _buildCurrencyItem('${widget.petState.humanitiesPoints}', '文科', Icons.menu_book, Colors.purple),
+          _buildCurrencyItem('${widget.petState.sciencePoints}', '理科', Icons.calculate, Colors.orange),
+          _buildCurrencyItem('${widget.petState.healthPoints}', '健康', Icons.favorite, Colors.red),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCurrencyItem(String value, String label, IconData icon, Color color) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 4),
+            Text(
+              value,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: color,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+        Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+      ],
     );
   }
 
@@ -279,11 +357,12 @@ class _HomeContentState extends State<_HomeContent> {
     );
   }
 
-  Widget _buildPetArea() {
+  Widget _buildPetArea(String equippedAccessory) {
     return AnimatedPetWidget(
       petState: widget.petState,
       isOverLimit: _showOverLimit,
       interactionType: InteractionType.pet,
+      equippedAccessory: equippedAccessory.isEmpty ? null : equippedAccessory,
       onTap: () async {
         final petCubit = context.read<PetCubit>();
         final contentCubit = context.read<ContentCubit>();
@@ -303,6 +382,38 @@ class _HomeContentState extends State<_HomeContent> {
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
         children: [
+          Row(
+            children: [
+              Expanded(
+                child: _buildActionButton(
+                  icon: Icons.shopping_cart,
+                  label: '商店',
+                  color: Colors.amber,
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ShopScreen()),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildActionButton(
+                  icon: Icons.task_alt,
+                  label: '每日任务',
+                  color: Colors.indigo,
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const DailyTasksScreen()),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
@@ -425,12 +536,20 @@ class _HomeContentState extends State<_HomeContent> {
   }
 
   void _onFeedPressed() async {
+    final taskCubit = context.read<TaskCubit>();
     final result = await context.read<PetCubit>().feedPet();
+    if (result.success) {
+      taskCubit.incrementTaskProgress(TaskType.feedPet);
+    }
     _showInteractionResult(result);
   }
 
   void _onPlayPressed() async {
+    final taskCubit = context.read<TaskCubit>();
     final result = await context.read<PetCubit>().playWithPet();
+    if (result.success) {
+      taskCubit.incrementTaskProgress(TaskType.playWithPet);
+    }
     _showInteractionResult(result);
   }
 

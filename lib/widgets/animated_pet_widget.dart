@@ -13,6 +13,7 @@ class AnimatedPetWidget extends StatefulWidget {
   final bool isOverLimit;
   final InteractionType? interactionType;
   final bool showEvolution;
+  final String? equippedAccessory;
 
   const AnimatedPetWidget({
     super.key,
@@ -22,6 +23,7 @@ class AnimatedPetWidget extends StatefulWidget {
     this.isOverLimit = false,
     this.interactionType,
     this.showEvolution = false,
+    this.equippedAccessory,
   });
 
   @override
@@ -152,6 +154,9 @@ class _AnimatedPetWidgetState extends State<AnimatedPetWidget>
   }
 
   String _getAccessory() {
+    if (widget.equippedAccessory != null && widget.equippedAccessory!.isNotEmpty) {
+      return widget.equippedAccessory!;
+    }
     final accessories = widget.petState.appearance.unlockedAccessories;
     if (accessories.isEmpty) return '';
     return accessories.last;

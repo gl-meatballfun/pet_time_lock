@@ -2,6 +2,8 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../models/app_models.dart';
+import '../models/currency_models.dart';
+import '../models/task_models.dart';
 import 'seed_data.dart';
 
 class DatabaseHelper {
@@ -336,8 +338,11 @@ class DatabaseHelper {
   }
 
   Future _seedShopItems(Database db) async {
-    // Shop items are seeded here once the shop system is implemented.
-    // For now the inventory tables exist but remain empty.
+    final batch = db.batch();
+    for (final item in SeedData.shopItems) {
+      batch.insert('shop_items', item.toMap(), conflictAlgorithm: ConflictAlgorithm.ignore);
+    }
+    await batch.commit(noResult: true);
   }
 
   // Pet State
@@ -489,7 +494,7 @@ class DatabaseHelper {
 
   Future<Map<String, int>> getTodayUsageByPackage() async {
     final db = await database;
-    final today = _formatDate(DateTime.now());
+    final today = formatDate(DateTime.now());
     final maps = await db.rawQuery('''
       SELECT package_name, SUM(duration_seconds) as total_seconds
       FROM usage_logs
@@ -564,7 +569,7 @@ class DatabaseHelper {
 
   Future<int> getCompletedContentCountToday() async {
     final db = await database;
-    final today = _formatDate(DateTime.now());
+    final today = formatDate(DateTime.now());
     final result = await db.rawQuery('''
       SELECT COUNT(*) as count FROM user_progress
       WHERE completed = 1 AND date(last_attempt) = ?
@@ -572,12 +577,187 @@ class DatabaseHelper {
     return (result.first['count'] as int?) ?? 0;
   }
 
-  static String _formatDate(DateTime date) {
+  // Currency atomic update
+  Future<PetState> updatePetCurrencies({
+    required int growthCoinsDelta,
+    required int humanitiesPointsDelta,
+    required int sciencePointsDelta,
+    required int healthPointsDelta,
+  }) async {
+    final pet = await getPetState();
+    if (pet == null) throw Exception('No pet state found');
+
+    final updated = pet.copyWith(
+      growthCoins: (pet.growthCoins + growthCoinsDelta).clamp(0, 999999),
+      humanitiesPoints: (pet.humanitiesPoints + humanitiesPointsDelta).clamp(0, 999999),
+      sciencePoints: (pet.sciencePoints + sciencePointsDelta).clamp(0, 999999),
+      healthPoints: (pet.healthPoints + healthPointsDelta).clamp(0, 999999),
+      lastUpdatedAt: DateTime.now(),
+    );
+    await updatePetState(updated);
+    return updated;
+  }
+
+  // Shop Items
+  Future<List<ShopItem>> getAllShopItems() async {
+    final db = await database;
+    final maps = await db.query('shop_items', orderBy: 'category, required_stage');
+    return maps.map((m) => ShopItem.fromMap(m)).toList();
+  }
+
+  Future<ShopItem?> getShopItem(String id) async {
+    final db = await database;
+    final maps = await db.query(
+      'shop_items',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    if (maps.isNotEmpty) return ShopItem.fromMap(maps.first);
+    return null;
+  }
+
+  // Inventory
+  Future<List<InventoryItem>> getAllInventory() async {
+    final db = await database;
+    final maps = await db.query('inventory', orderBy: 'acquired_at DESC');
+    return maps.map((m) => InventoryItem.fromMap(m)).toList();
+  }
+
+  Future<InventoryItem?> getInventoryItem(String itemId) async {
+    final db = await database;
+    final maps = await db.query(
+      'inventory',
+      where: 'item_id = ?',
+      whereArgs: [itemId],
+      limit: 1,
+    );
+    if (maps.isNotEmpty) return InventoryItem.fromMap(maps.first);
+    return null;
+  }
+
+  Future<int> addOrUpdateInventoryItem(InventoryItem item) async {
+    final db = await database;
+    return await db.insert(
+      'inventory',
+      item.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<int> updateInventoryItem(InventoryItem item) async {
+    final db = await database;
+    return await db.update(
+      'inventory',
+      item.toMap(),
+      where: 'item_id = ?',
+      whereArgs: [item.itemId],
+    );
+  }
+
+  Future<int> deleteInventoryItem(String itemId) async {
+    final db = await database;
+    return await db.delete(
+      'inventory',
+      where: 'item_id = ?',
+      whereArgs: [itemId],
+    );
+  }
+
+  // Reward Logs
+  Future<int> insertRewardLog(RewardLog log) async {
+    final db = await database;
+    return await db.insert('reward_logs', log.toMap());
+  }
+
+  Future<List<RewardLog>> getRewardLogs({int limit = 50}) async {
+    final db = await database;
+    final maps = await db.query(
+      'reward_logs',
+      orderBy: 'created_at DESC',
+      limit: limit,
+    );
+    return maps.map((m) => RewardLog.fromMap(m)).toList();
+  }
+
+  // Daily Tasks
+  Future<List<DailyTask>> getDailyTasksForDate(String date) async {
+    final db = await database;
+    final maps = await db.query(
+      'daily_tasks',
+      where: 'assigned_date = ?',
+      whereArgs: [date],
+      orderBy: 'completed, id',
+    );
+    return maps.map((m) => DailyTask.fromMap(m)).toList();
+  }
+
+  Future<int> insertOrUpdateDailyTask(DailyTask task) async {
+    final db = await database;
+    return await db.insert(
+      'daily_tasks',
+      task.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<int> deleteDailyTasksForDate(String date) async {
+    final db = await database;
+    return await db.delete(
+      'daily_tasks',
+      where: 'assigned_date = ?',
+      whereArgs: [date],
+    );
+  }
+
+  // Wrong Answers
+  Future<int> insertOrUpdateWrongAnswer(WrongAnswer wrong) async {
+    final db = await database;
+    final existing = await db.query(
+      'wrong_answers',
+      where: 'content_id = ?',
+      whereArgs: [wrong.contentId],
+      limit: 1,
+    );
+    if (existing.isNotEmpty) {
+      final current = WrongAnswer.fromMap(existing.first);
+      final updated = current.copyWith(
+        mistakeCount: current.mistakeCount + 1,
+        lastMistakeAt: DateTime.now(),
+      );
+      return await db.update(
+        'wrong_answers',
+        updated.toMap(),
+        where: 'content_id = ?',
+        whereArgs: [wrong.contentId],
+      );
+    }
+    return await db.insert('wrong_answers', wrong.toMap());
+  }
+
+  Future<List<WrongAnswer>> getAllWrongAnswers() async {
+    final db = await database;
+    final maps = await db.query(
+      'wrong_answers',
+      orderBy: 'last_mistake_at DESC',
+    );
+    return maps.map((m) => WrongAnswer.fromMap(m)).toList();
+  }
+
+  Future<int> getWrongAnswerCountForSubject(String subject) async {
+    final db = await database;
+    final result = await db.rawQuery(
+      'SELECT SUM(mistake_count) as total FROM wrong_answers WHERE subject = ?',
+      [subject],
+    );
+    return (result.first['total'] as int?) ?? 0;
+  }
+
+  static String formatDate(DateTime date) {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 
   Future close() async {
-    final db = await database;
-    db.close();
+    (await database).close();
   }
 }

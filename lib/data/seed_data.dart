@@ -1,4 +1,5 @@
 import '../models/app_models.dart';
+import '../models/currency_models.dart';
 
 class SeedData {
   static const List<EducationalContent> educationalContent = [
@@ -284,6 +285,141 @@ class SeedData {
       grade: 12,
       scene: 'over_limit',
       feedback: '宠物微笑着，眼里闪着光',
+    ),
+  ];
+
+  static const List<ShopItem> shopItems = [
+    // 食物（恢复饥饿）
+    ShopItem(
+      id: 'food_biscuit',
+      name: '小饼干',
+      description: '普通的小饼干，宠物饿了的时候很爱吃。',
+      iconEmoji: '🍪',
+      category: ShopItemCategory.food,
+      sciencePointsCost: 10,
+      effectHunger: 15,
+      effectHappiness: 5,
+    ),
+    ShopItem(
+      id: 'food_feast',
+      name: '豪华大餐',
+      description: '丰盛的大餐，能让宠物非常开心。',
+      iconEmoji: '🍱',
+      category: ShopItemCategory.food,
+      sciencePointsCost: 30,
+      effectHunger: 40,
+      effectHappiness: 15,
+      effectHealth: 5,
+    ),
+    ShopItem(
+      id: 'food_cake',
+      name: '知识蛋糕',
+      description: '特殊的蛋糕，吃了还能增长知识。',
+      iconEmoji: '🎂',
+      category: ShopItemCategory.food,
+      growthCoinsCost: 50,
+      humanitiesPointsCost: 10,
+      effectHunger: 25,
+      effectHappiness: 10,
+      effectKnowledge: 10,
+    ),
+
+    // 玩具（提升快乐）
+    ShopItem(
+      id: 'toy_ball',
+      name: '弹力球',
+      description: '宠物最爱的玩具，玩起来停不下来。',
+      iconEmoji: '🎾',
+      category: ShopItemCategory.toy,
+      humanitiesPointsCost: 15,
+      effectHappiness: 25,
+      effectHunger: -5,
+    ),
+    ShopItem(
+      id: 'toy_puzzle',
+      name: '益智拼图',
+      description: '锻炼宠物智力的好玩具。',
+      iconEmoji: '🧩',
+      category: ShopItemCategory.toy,
+      growthCoinsCost: 40,
+      sciencePointsCost: 5,
+      effectHappiness: 20,
+      effectKnowledge: 15,
+    ),
+
+    // 药品（恢复健康）
+    ShopItem(
+      id: 'medicine_herb',
+      name: '草药',
+      description: '传统的草药，能恢复宠物的健康。',
+      iconEmoji: '🌿',
+      category: ShopItemCategory.medicine,
+      healthPointsCost: 10,
+      effectHealth: 20,
+      effectHunger: -5,
+    ),
+    ShopItem(
+      id: 'medicine_potion',
+      name: '恢复药水',
+      description: '神奇的药水，能全面恢复宠物状态。',
+      iconEmoji: '🧪',
+      category: ShopItemCategory.medicine,
+      growthCoinsCost: 60,
+      healthPointsCost: 15,
+      effectHealth: 50,
+      effectHappiness: 10,
+      effectHunger: 10,
+    ),
+
+    // 装饰（外观解锁）
+    ShopItem(
+      id: 'acc_bow',
+      name: '蝴蝶结',
+      description: '可爱的蝴蝶结，让宠物更加萌萌哒。',
+      iconEmoji: '🎀',
+      category: ShopItemCategory.accessory,
+      growthCoinsCost: 50,
+      isConsumable: false,
+      appearanceUnlock: '🎀',
+      requiredStage: 1,
+    ),
+    ShopItem(
+      id: 'acc_hat',
+      name: '学霸帽',
+      description: '一顶象征学霸的帽子，装备后宠物看起来更聪明。',
+      iconEmoji: '🎓',
+      category: ShopItemCategory.accessory,
+      growthCoinsCost: 30,
+      humanitiesPointsCost: 30,
+      sciencePointsCost: 30,
+      isConsumable: false,
+      appearanceUnlock: '🎓',
+      requiredStage: 2,
+    ),
+    ShopItem(
+      id: 'acc_glasses',
+      name: '眼镜',
+      description: '一副学者眼镜，知识气息满满。',
+      iconEmoji: '👓',
+      category: ShopItemCategory.accessory,
+      growthCoinsCost: 80,
+      sciencePointsCost: 15,
+      isConsumable: false,
+      appearanceUnlock: '👓',
+      requiredStage: 2,
+    ),
+    ShopItem(
+      id: 'acc_crown',
+      name: '皇冠',
+      description: '只有成年宠物才能佩戴的尊贵皇冠。',
+      iconEmoji: '👑',
+      category: ShopItemCategory.accessory,
+      growthCoinsCost: 200,
+      sciencePointsCost: 30,
+      humanitiesPointsCost: 30,
+      isConsumable: false,
+      appearanceUnlock: '👑',
+      requiredStage: 4,
     ),
   ];
 }

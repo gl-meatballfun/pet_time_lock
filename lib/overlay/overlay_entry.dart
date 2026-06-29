@@ -5,6 +5,7 @@ import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 
 import '../data/database_helper.dart';
 import '../models/app_models.dart';
+import '../models/currency_models.dart';
 import '../models/overlay_payload.dart';
 import '../services/overlay_service.dart';
 import 'overlay_action_menu.dart';
@@ -30,6 +31,7 @@ class OverlayApp extends StatefulWidget {
 
 class _OverlayAppState extends State<OverlayApp> {
   PetState? _petState;
+  String? _equippedAccessory;
   bool _isExpanded = false;
   String? _triggerMessage;
   Timer? _triggerTimer;
@@ -59,8 +61,22 @@ class _OverlayAppState extends State<OverlayApp> {
   Future<void> _loadPetState() async {
     try {
       final pet = await DatabaseHelper.instance.getPetState();
+      final inventory = await DatabaseHelper.instance.getAllInventory();
+      String? equipped;
+      for (final item in inventory) {
+        if (item.isEquipped) {
+          final ShopItem? shopItem = await DatabaseHelper.instance.getShopItem(item.itemId);
+          if (shopItem != null) {
+            equipped = shopItem.appearanceUnlock;
+            break;
+          }
+        }
+      }
       if (mounted) {
-        setState(() => _petState = pet);
+        setState(() {
+          _petState = pet;
+          _equippedAccessory = equipped;
+        });
       }
     } catch (e) {
       debugPrint('Overlay failed to load pet state: $e');
@@ -164,6 +180,7 @@ class _OverlayAppState extends State<OverlayApp> {
               alignment: Alignment.bottomCenter,
               child: OverlayPetWidget(
                 petState: pet,
+                equippedAccessory: _equippedAccessory,
                 triggerMessage: _triggerMessage,
                 onTap: _toggleExpanded,
               ),

@@ -6,6 +6,7 @@ import '../data/database_helper.dart';
 import '../models/app_models.dart';
 import '../models/overlay_payload.dart';
 import '../services/overlay_service.dart';
+import '../services/reward_service.dart';
 
 part 'pet_state.dart';
 
@@ -121,10 +122,11 @@ class PetCubit extends Cubit<PetManagerState> {
   }
 
   Future interactWithPet({
-    int happinessDelta = 5,
+    int happinessDelta = 0,
     int knowledgeDelta = 0,
     int hungerDelta = 0,
     int disciplineDelta = 0,
+    int healthDelta = 0,
     int xpDelta = 0,
   }) async {
     if (state.petState == null) return;
@@ -134,6 +136,7 @@ class PetCubit extends Cubit<PetManagerState> {
       knowledge: _clamp(state.petState!.knowledge + knowledgeDelta, max: 10000),
       hunger: _clamp(state.petState!.hunger + hungerDelta),
       discipline: _clamp(state.petState!.discipline + disciplineDelta),
+      health: _clamp(state.petState!.health + healthDelta),
       growthXp: state.petState!.growthXp + xpDelta,
       lastUpdatedAt: DateTime.now(),
     );
@@ -270,17 +273,28 @@ class PetCubit extends Cubit<PetManagerState> {
     }
 
     final xp = minutes * 2;
-    final updated = state.petState!.copyWith(
-      happiness: _clamp(state.petState!.happiness + 15),
-      knowledge: _clamp(state.petState!.knowledge + 10, max: 10000),
-      discipline: _clamp(state.petState!.discipline + 5),
-      growthXp: state.petState!.growthXp + xp,
+    final healthPoints = RewardService.calculateFocusReward(minutes);
+    final growthCoins = minutes ~/ 5;
+
+    final currencyUpdated = await RewardService().awardCurrency(
+      db: _db,
+      source: RewardService.sourceFocusComplete,
+      growthCoinsDelta: growthCoins,
+      healthPointsDelta: healthPoints,
+      description: '完成专注 $minutes 分钟',
+    );
+
+    final updated = currencyUpdated.copyWith(
+      happiness: _clamp(currencyUpdated.happiness + 15),
+      knowledge: _clamp(currencyUpdated.knowledge + 10, max: 10000),
+      discipline: _clamp(currencyUpdated.discipline + 5),
+      growthXp: currencyUpdated.growthXp + xp,
       lastUpdatedAt: DateTime.now(),
     );
 
     return _applyAndEmit(
       updated,
-      successMessage: '专注完成！宠物获得了成长能量~',
+      successMessage: '专注完成！获得 $healthPoints 健康积分和 $growthCoins 成长币~',
       type: InteractionType.focus,
     );
   }
@@ -298,7 +312,7 @@ class PetCubit extends Cubit<PetManagerState> {
     emit(state.copyWith(petState: updated));
   }
 
-  Future<InteractionResult> answerQuestionCorrectly() async {
+  Future<InteractionResult> answerQuestionCorrectly(String subject, int grade) async {
     final pet = state.petState;
     if (pet == null) {
       return const InteractionResult(
@@ -308,15 +322,27 @@ class PetCubit extends Cubit<PetManagerState> {
       );
     }
 
-    final updated = pet.copyWith(
-      hunger: _clamp(pet.hunger + 10),
-      knowledge: _clamp(pet.knowledge + 5, max: 10000),
-      growthXp: pet.growthXp + 5,
+    final reward = RewardService.calculateSubjectReward(subject, grade);
+    final currencyUpdated = await RewardService().awardCurrency(
+      db: _db,
+      source: RewardService.sourceAnswerCorrect,
+      growthCoinsDelta: reward.growthCoins,
+      humanitiesPointsDelta:
+          subject == '语文' || subject == '英语' ? reward.subjectPoints : 0,
+      sciencePointsDelta:
+          subject == '数学' || subject == '物理' ? reward.subjectPoints : 0,
+      description: '回答正确: $subject 题目',
+    );
+
+    final updated = currencyUpdated.copyWith(
+      hunger: _clamp(currencyUpdated.hunger + 10),
+      knowledge: _clamp(currencyUpdated.knowledge + 5, max: 10000),
+      growthXp: currencyUpdated.growthXp + 5,
       lastUpdatedAt: DateTime.now(),
     );
     return _applyAndEmit(
       updated,
-      successMessage: '回答正确！宠物学到了新知识~',
+      successMessage: '回答正确！获得 ${reward.subjectPoints} ${reward.currencyName}~',
       type: InteractionType.learn,
     );
   }
@@ -326,7 +352,7 @@ class PetCubit extends Cubit<PetManagerState> {
     required String successMessage,
     required InteractionType type,
   }) async {
-    final evolved = _checkGrowth(updated);
+    final evolved = await _checkGrowth(updated);
     final didEvolve = evolved.stage != updated.stage;
 
     await _db.updatePetState(evolved);
@@ -349,7 +375,7 @@ class PetCubit extends Cubit<PetManagerState> {
     );
   }
 
-  PetState _checkGrowth(PetState pet) {
+  Future<PetState> _checkGrowth(PetState pet) async {
     final thresholds = [0, 50, 150, 300, 500];
     int newStage = 0;
     for (int i = thresholds.length - 1; i >= 0; i--) {
@@ -359,6 +385,7 @@ class PetCubit extends Cubit<PetManagerState> {
       }
     }
     if (newStage > pet.stage) {
+      final evolutionCoins = newStage * 20;
       final currentAppearance = pet.appearance;
       const stageAccessories = ['', '🍼', '🎀', '🎓', '👑'];
       final newAccessory = stageAccessories[newStage];
@@ -371,9 +398,19 @@ class PetCubit extends Cubit<PetManagerState> {
         ],
         evolutionCount: currentAppearance.evolutionCount + 1,
       );
+
+      // 发放进化奖励并获取更新后的货币
+      final rewarded = await RewardService().awardCurrency(
+        db: _db,
+        source: RewardService.sourceEvolution,
+        growthCoinsDelta: evolutionCoins,
+        description: '宠物进化到阶段 $newStage',
+      );
+
       return pet.copyWith(
         stage: newStage,
         appearanceJson: updatedAppearance.toJson(),
+        growthCoins: rewarded.growthCoins,
       );
     }
     return pet;

@@ -5,9 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../bloc/pet_cubit.dart';
+import '../bloc/task_cubit.dart';
 import '../models/overlay_payload.dart';
+import '../models/task_models.dart';
 import '../services/notification_service.dart';
 import '../services/overlay_service.dart';
+import '../services/reward_service.dart';
 import '../services/screen_time_service.dart';
 
 class FocusScreen extends StatefulWidget {
@@ -70,6 +73,7 @@ class _FocusScreenState extends State<FocusScreen>
       _isCompleted = true;
     });
     context.read<PetCubit>().completeFocusSession(_selectedDuration);
+    context.read<TaskCubit>().incrementTaskProgress(TaskType.focusSession);
     context.read<ScreenTimeService>().stopFocusMode();
     NotificationService().showFocusCompleteNotification();
     OverlayService().showOverlayWithTrigger(OverlayTrigger.focusComplete);
@@ -289,6 +293,8 @@ class _FocusScreenState extends State<FocusScreen>
   }
 
   Widget _buildCompletedFocus() {
+    final healthPoints = RewardService.calculateFocusReward(_selectedDuration);
+    final growthCoins = _selectedDuration ~/ 5;
     return Column(
       children: [
         Container(
@@ -342,6 +348,15 @@ class _FocusScreenState extends State<FocusScreen>
             ],
           ),
         ),
+        const SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _buildRewardBadge('+$growthCoins', '成长币', Icons.monetization_on, Colors.amber),
+            const SizedBox(width: 12),
+            _buildRewardBadge('+$healthPoints', '健康积分', Icons.favorite, Colors.red),
+          ],
+        ),
         const SizedBox(height: 64),
         SizedBox(
           width: double.infinity,
@@ -360,6 +375,31 @@ class _FocusScreenState extends State<FocusScreen>
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildRewardBadge(String value, String label, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 6),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(value, style: TextStyle(fontWeight: FontWeight.bold, color: color)),
+              Text(label, style: TextStyle(fontSize: 11, color: color.withOpacity(0.8))),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

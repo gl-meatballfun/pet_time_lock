@@ -3,10 +3,14 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'bloc/content_cubit.dart';
+import 'bloc/inventory_cubit.dart';
 import 'bloc/pet_cubit.dart';
+import 'bloc/shop_cubit.dart';
+import 'bloc/task_cubit.dart';
 import 'data/database_helper.dart';
 import 'models/app_models.dart';
 import 'models/overlay_payload.dart';
+import 'models/task_models.dart';
 import 'overlay/overlay_entry.dart' as overlay;
 import 'screens/focus_screen.dart';
 import 'screens/home_screen.dart';
@@ -83,11 +87,13 @@ class _PetTimeLockAppState extends State<PetTimeLockApp>
         _navigateAndExecute(
           (context) => context.read<PetCubit>().feedPet(),
           '喂食成功！',
+          taskType: TaskType.feedPet,
         );
       case OverlayPayload.play:
         _navigateAndExecute(
           (context) => context.read<PetCubit>().playWithPet(),
           '玩耍很开心！',
+          taskType: TaskType.playWithPet,
         );
       case OverlayPayload.pet:
         _navigateAndExecute(
@@ -121,8 +127,9 @@ class _PetTimeLockAppState extends State<PetTimeLockApp>
 
   void _navigateAndExecute(
     Future<InteractionResult> Function(BuildContext context) action,
-    String fallbackMessage,
-  ) async {
+    String fallbackMessage, {
+    TaskType? taskType,
+  }) async {
     if (!mounted) return;
     final navigator = Navigator.of(context);
     navigator.pushAndRemoveUntil(
@@ -133,7 +140,11 @@ class _PetTimeLockAppState extends State<PetTimeLockApp>
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final context = navigator.context;
       if (context.mounted) {
+        final taskCubit = taskType != null ? context.read<TaskCubit>() : null;
         final result = await action(context);
+        if (taskType != null && result.success) {
+          taskCubit?.incrementTaskProgress(taskType);
+        }
         final message = result.message.isNotEmpty ? result.message : fallbackMessage;
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -161,6 +172,15 @@ class _PetTimeLockAppState extends State<PetTimeLockApp>
           ),
           BlocProvider(
             create: (_) => ContentCubit(widget.db),
+          ),
+          BlocProvider(
+            create: (_) => ShopCubit(widget.db),
+          ),
+          BlocProvider(
+            create: (_) => InventoryCubit(widget.db),
+          ),
+          BlocProvider(
+            create: (_) => TaskCubit(widget.db),
           ),
         ],
         child: MaterialApp(
