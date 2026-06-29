@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 abstract class ScreenTimeService {
@@ -42,7 +43,7 @@ class AppUsage {
 
 /// Returns the appropriate implementation based on platform.
 ScreenTimeService createScreenTimeService() {
-  if (Platform.isAndroid) {
+  if (!kIsWeb && Platform.isAndroid) {
     return AndroidScreenTimeService();
   }
   return LocalScreenTimeService();
