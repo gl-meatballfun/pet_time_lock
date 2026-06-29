@@ -42,6 +42,44 @@ class ShopItem {
     this.appearanceUnlock,
   });
 
+  ShopItem copyWith({
+    String? id,
+    String? name,
+    String? description,
+    String? iconEmoji,
+    ShopItemCategory? category,
+    int? growthCoinsCost,
+    int? humanitiesPointsCost,
+    int? sciencePointsCost,
+    int? healthPointsCost,
+    int? effectHealth,
+    int? effectHappiness,
+    int? effectHunger,
+    int? effectKnowledge,
+    int? requiredStage,
+    bool? isConsumable,
+    String? appearanceUnlock,
+  }) {
+    return ShopItem(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      iconEmoji: iconEmoji ?? this.iconEmoji,
+      category: category ?? this.category,
+      growthCoinsCost: growthCoinsCost ?? this.growthCoinsCost,
+      humanitiesPointsCost: humanitiesPointsCost ?? this.humanitiesPointsCost,
+      sciencePointsCost: sciencePointsCost ?? this.sciencePointsCost,
+      healthPointsCost: healthPointsCost ?? this.healthPointsCost,
+      effectHealth: effectHealth ?? this.effectHealth,
+      effectHappiness: effectHappiness ?? this.effectHappiness,
+      effectHunger: effectHunger ?? this.effectHunger,
+      effectKnowledge: effectKnowledge ?? this.effectKnowledge,
+      requiredStage: requiredStage ?? this.requiredStage,
+      isConsumable: isConsumable ?? this.isConsumable,
+      appearanceUnlock: appearanceUnlock ?? this.appearanceUnlock,
+    );
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,
