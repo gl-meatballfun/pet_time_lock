@@ -44,6 +44,10 @@ class MainActivity : FlutterActivity() {
                     result.success(getTodayUsageByPackage())
                 }
 
+                "getCurrentForegroundApp" -> {
+                    result.success(getCurrentForegroundApp())
+                }
+
                 else -> result.notImplemented()
             }
         }
@@ -145,5 +149,23 @@ class MainActivity : FlutterActivity() {
             }
         }
         return result
+    }
+
+    private fun getCurrentForegroundApp(): String? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP_MR1) {
+            return null
+        }
+        val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+        val time = System.currentTimeMillis()
+        val stats = usageStatsManager.queryUsageStats(
+            UsageStatsManager.INTERVAL_DAILY,
+            time - 60 * 1000,
+            time
+        ) ?: return null
+
+        return stats
+            .filter { it.lastTimeUsed > 0 }
+            .maxByOrNull { it.lastTimeUsed }
+            ?.packageName
     }
 }

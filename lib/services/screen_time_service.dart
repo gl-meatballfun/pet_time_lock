@@ -6,7 +6,10 @@ import 'package:flutter/services.dart';
 
 abstract class ScreenTimeService {
   Future<bool> requestAuthorization();
+  Future<bool> hasAuthorization();
   Future<Map<String, int>> getTodayUsageByPackage();
+  Future<String?> getCurrentForegroundApp();
+  Future<String?> getLastUsedPackage();
   Future<void> startFocusMode(Duration duration);
   Future<void> stopFocusMode();
   Stream<FocusEvent> get focusEvents;
@@ -63,6 +66,7 @@ class AndroidScreenTimeService implements ScreenTimeService {
     }
   }
 
+  @override
   Future<bool> hasAuthorization() async {
     try {
       return await _channel.invokeMethod('hasUsageStatsPermission') ?? false;
@@ -88,6 +92,30 @@ class AndroidScreenTimeService implements ScreenTimeService {
           MapEntry(key.toString(), (value as num).toInt()));
     } catch (e) {
       return _mockUsageData();
+    }
+  }
+
+  @override
+  Future<String?> getCurrentForegroundApp() async {
+    try {
+      final hasPermission = await hasAuthorization();
+      if (!hasPermission) return null;
+
+      return await _channel.invokeMethod<String>('getCurrentForegroundApp');
+    } catch (e) {
+      return null;
+    }
+  }
+
+  @override
+  Future<String?> getLastUsedPackage() async {
+    try {
+      final stats = await getUsageStats(hours: 1);
+      if (stats.isEmpty) return null;
+      stats.sort((a, b) => b.lastTimeUsed.compareTo(a.lastTimeUsed));
+      return stats.first.packageName;
+    } catch (e) {
+      return null;
     }
   }
 
@@ -151,6 +179,9 @@ class LocalScreenTimeService implements ScreenTimeService {
   Future<bool> requestAuthorization() async => true;
 
   @override
+  Future<bool> hasAuthorization() async => true;
+
+  @override
   Future<Map<String, int>> getTodayUsageByPackage() async {
     return {
       'com.tencent.mm': 1800,
@@ -158,6 +189,12 @@ class LocalScreenTimeService implements ScreenTimeService {
       'com.example.app': 120,
     };
   }
+
+  @override
+  Future<String?> getCurrentForegroundApp() async => 'com.tencent.mm';
+
+  @override
+  Future<String?> getLastUsedPackage() async => 'com.tencent.mm';
 
   @override
   Future<void> startFocusMode(Duration duration) async {

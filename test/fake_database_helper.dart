@@ -1,5 +1,6 @@
 import 'package:pet_time_lock/data/database_helper.dart';
 import 'package:pet_time_lock/models/app_models.dart';
+import 'package:pet_time_lock/models/compliance_models.dart';
 import 'package:pet_time_lock/models/currency_models.dart';
 import 'package:pet_time_lock/models/task_models.dart';
 
@@ -11,6 +12,10 @@ class FakeDatabaseHelper implements DatabaseHelper {
   final List<DailyTask> _dailyTasks = [];
   final List<RewardLog> _rewardLogs = [];
   final List<WrongAnswer> _wrongAnswers = [];
+  final List<TimeSlot> _timeSlots = [];
+  final List<ViolationLog> _violationLogs = [];
+  final Map<String, ComplianceRecord> _complianceRecords = {};
+  final Map<String, AppWhitelistEntry> _whitelist = {};
 
   void seedPetState(PetState pet) => _petState = pet;
 
@@ -171,10 +176,136 @@ class FakeDatabaseHelper implements DatabaseHelper {
         .fold<int>(0, (sum, w) => sum + w.mistakeCount);
   }
 
+  // App Limits
+  @override
+  Future<List<AppLimit>> getAppLimits() async {
+    return List.unmodifiable(_appLimits);
+  }
+
+  @override
+  Future<int> insertOrUpdateAppLimit(AppLimit limit) async {
+    final index = _appLimits.indexWhere((l) => l.packageName == limit.packageName);
+    if (index >= 0) {
+      _appLimits[index] = limit;
+    } else {
+      _appLimits.add(limit);
+    }
+    return 1;
+  }
+
+  // Time Slots
+  @override
+  Future<List<TimeSlot>> getTimeSlots() async => List.unmodifiable(_timeSlots);
+
+  @override
+  Future<List<TimeSlot>> getActiveTimeSlots() async =>
+      List.unmodifiable(_timeSlots.where((s) => s.isActive));
+
+  @override
+  Future<int> insertTimeSlot(TimeSlot slot) async {
+    _timeSlots.add(slot);
+    return _timeSlots.length;
+  }
+
+  @override
+  Future<int> updateTimeSlot(TimeSlot slot) async {
+    final index = _timeSlots.indexWhere((s) => s.id == slot.id);
+    if (index >= 0) _timeSlots[index] = slot;
+    return 1;
+  }
+
+  @override
+  Future<int> deleteTimeSlot(int id) async {
+    _timeSlots.removeWhere((s) => s.id == id);
+    return 1;
+  }
+
+  // Compliance Records
+  @override
+  Future<ComplianceRecord?> getComplianceRecord(String date, String? packageName) async {
+    return _complianceRecords['$date:$packageName'];
+  }
+
+  @override
+  Future<int> insertOrUpdateComplianceRecord(ComplianceRecord record) async {
+    _complianceRecords['${record.date}:${record.packageName}'] = record;
+    return 1;
+  }
+
+  @override
+  Future<List<ComplianceRecord>> getComplianceRecordsForDate(String date) async {
+    return _complianceRecords.values.where((r) => r.date == date).toList();
+  }
+
+  // Violation Logs
+  @override
+  Future<int> insertViolationLog(ViolationLog log) async {
+    _violationLogs.add(log);
+    return _violationLogs.length;
+  }
+
+  @override
+  Future<List<ViolationLog>> getViolationsForDate(String date) async {
+    return _violationLogs.where((v) =>
+      DatabaseHelper.formatDate(v.timestamp) == date).toList();
+  }
+
+  @override
+  Future<int> getViolationCountForDate(String date) async {
+    return (await getViolationsForDate(date)).length;
+  }
+
+  // Whitelist
+  @override
+  Future<List<AppWhitelistEntry>> getWhitelist() async =>
+      List.unmodifiable(_whitelist.values);
+
+  @override
+  Future<bool> isWhitelisted(String packageName) async =>
+      _whitelist.containsKey(packageName);
+
+  @override
+  Future<int> addWhitelistEntry(AppWhitelistEntry entry) async {
+    _whitelist[entry.packageName] = entry;
+    return 1;
+  }
+
+  @override
+  Future<int> removeWhitelistEntry(String packageName) async {
+    _whitelist.remove(packageName);
+    return 1;
+  }
+
+  // Usage Logs
+  final List<UsageLog> _usageLogs = [];
+
+  @override
+  Future<int> insertUsageLog(UsageLog log) async {
+    _usageLogs.add(log);
+    return _usageLogs.length;
+  }
+
+  @override
+  Future<List<UsageLog>> getUsageLogsByDate(String date) async {
+    return _usageLogs.where((l) => l.date == date).toList();
+  }
+
+  @override
+  Future<Map<String, int>> getTodayUsageByPackage() async {
+    final today = DatabaseHelper.formatDate(DateTime.now());
+    final result = <String, int>{};
+    for (final log in _usageLogs.where((l) => l.date == today)) {
+      result[log.packageName] = (result[log.packageName] ?? 0) + log.durationSeconds;
+    }
+    return result;
+  }
+
   // 未使用的方法
   @override
   Future<void> close() async {}
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+
+  final List<AppLimit> _appLimits = [];
 }

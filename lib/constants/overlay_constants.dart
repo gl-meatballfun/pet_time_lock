@@ -31,6 +31,10 @@ class OverlayConstants {
       'trigger_focus_complete_enabled';
   static const String triggerOverLimitEnabled = 'trigger_over_limit_enabled';
   static const String triggerEvolutionEnabled = 'trigger_evolution_enabled';
+  static const String triggerTimeSlotBlockEnabled =
+      'trigger_time_slot_block_enabled';
+  static const String triggerComplianceRewardEnabled =
+      'trigger_compliance_reward_enabled';
 
   // Overlay payload actions (sent to / from the overlay engine)
   static const String actionRefreshPet = 'refresh_pet';

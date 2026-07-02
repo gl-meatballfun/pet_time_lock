@@ -4,11 +4,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:pet_time_lock/bloc/content_cubit.dart';
 import 'package:pet_time_lock/bloc/inventory_cubit.dart';
+import 'package:pet_time_lock/bloc/monitor_cubit.dart';
 import 'package:pet_time_lock/bloc/pet_cubit.dart';
 import 'package:pet_time_lock/bloc/shop_cubit.dart';
 import 'package:pet_time_lock/bloc/task_cubit.dart';
 import 'package:pet_time_lock/models/app_models.dart';
 import 'package:pet_time_lock/screens/home_screen.dart';
+import 'package:pet_time_lock/services/screen_time_service.dart';
 
 import '../fake_database_helper.dart';
 import '../mocks.dart';
@@ -30,6 +32,9 @@ void main() {
       return MultiRepositoryProvider(
         providers: [
           RepositoryProvider<FakeDatabaseHelper>.value(value: fakeDb),
+          RepositoryProvider<ScreenTimeService>.value(
+            value: LocalScreenTimeService(),
+          ),
         ],
         child: MultiBlocProvider(
           providers: [
@@ -38,6 +43,7 @@ void main() {
             BlocProvider(create: (_) => ShopCubit(fakeDb)),
             BlocProvider(create: (_) => InventoryCubit(fakeDb)),
             BlocProvider(create: (_) => TaskCubit(fakeDb)),
+            BlocProvider(create: (_) => MonitorCubit(fakeDb, LocalScreenTimeService())),
           ],
           child: MaterialApp(home: child),
         ),

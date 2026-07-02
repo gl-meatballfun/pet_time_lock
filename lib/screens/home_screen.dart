@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../bloc/content_cubit.dart';
 import '../bloc/inventory_cubit.dart';
+import '../bloc/monitor_cubit.dart';
 import '../bloc/pet_cubit.dart';
 import '../bloc/task_cubit.dart';
 import '../models/app_models.dart';
@@ -10,6 +11,7 @@ import '../models/overlay_payload.dart';
 import '../models/task_models.dart';
 import '../services/overlay_service.dart';
 import '../widgets/animated_pet_widget.dart';
+import 'app_limits_screen.dart';
 import 'content_card_dialog.dart';
 import 'daily_tasks_screen.dart';
 import 'focus_screen.dart';
@@ -19,6 +21,7 @@ import 'learning_center_screen.dart';
 import 'quote_card_dialog.dart';
 import 'settings_screen.dart';
 import 'shop_screen.dart';
+import 'time_slots_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -145,6 +148,7 @@ class _HomeContentState extends State<_HomeContent> {
                     _buildCurrencyBar(),
                     _buildGradeAndStageChip(),
                     _buildStatsBar(),
+                    _buildScreenTimeCard(),
                     Expanded(
                       child: _buildPetArea(equippedAccessory ?? ''),
                     ),
@@ -253,6 +257,87 @@ class _HomeContentState extends State<_HomeContent> {
           _buildCurrencyItem('${widget.petState.healthPoints}', '健康', Icons.favorite, Colors.red),
         ],
       ),
+    );
+  }
+
+  Widget _buildScreenTimeCard() {
+    return BlocBuilder<MonitorCubit, MonitorState>(
+      builder: (context, state) {
+        if (state.status != MonitorStatus.loaded) {
+          context.read<MonitorCubit>().loadSummary();
+          return const SizedBox.shrink();
+        }
+
+        final total = state.totalScreenTimeMinutes;
+        final overLimit = state.limitStatuses.where((s) => s.isOverLimit).toList();
+        final hasWarning = overLimit.isNotEmpty;
+
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: hasWarning ? Colors.red[50] : Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 15,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    '今日屏幕时间',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    '$total 分钟',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: hasWarning ? Colors.red : Colors.green,
+                    ),
+                  ),
+                ],
+              ),
+              if (overLimit.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  '已超时：${overLimit.map((s) => s.appName).join('、')}',
+                  style: TextStyle(fontSize: 12, color: Colors.red[700]),
+                ),
+              ],
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: [
+                  ActionChip(
+                    avatar: const Icon(Icons.apps, size: 18),
+                    label: const Text('应用限额'),
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const AppLimitsScreen()),
+                    ),
+                  ),
+                  ActionChip(
+                    avatar: const Icon(Icons.schedule, size: 18),
+                    label: const Text('时段限制'),
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const TimeSlotsScreen()),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

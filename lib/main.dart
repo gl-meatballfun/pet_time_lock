@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'bloc/content_cubit.dart';
 import 'bloc/inventory_cubit.dart';
+import 'bloc/monitor_cubit.dart';
 import 'bloc/pet_cubit.dart';
 import 'bloc/shop_cubit.dart';
 import 'bloc/task_cubit.dart';
@@ -15,6 +16,7 @@ import 'overlay/overlay_entry.dart' as overlay;
 import 'screens/focus_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/learning_center_screen.dart';
+import 'services/app_monitor_service.dart';
 import 'services/overlay_service.dart';
 import 'services/screen_time_service.dart';
 
@@ -32,11 +34,18 @@ void main() async {
   final prefs = await SharedPreferences.getInstance();
   final db = DatabaseHelper.instance;
   final screenTimeService = createScreenTimeService();
+  final appMonitor = AppMonitorService(
+    prefs: prefs,
+    db: db,
+    screenTimeService: screenTimeService,
+  );
+  await appMonitor.initialize();
 
   runApp(PetTimeLockApp(
     prefs: prefs,
     db: db,
     screenTimeService: screenTimeService,
+    appMonitor: appMonitor,
   ));
 }
 
@@ -44,12 +53,14 @@ class PetTimeLockApp extends StatefulWidget {
   final SharedPreferences prefs;
   final DatabaseHelper db;
   final ScreenTimeService screenTimeService;
+  final AppMonitorService appMonitor;
 
   const PetTimeLockApp({
     super.key,
     required this.prefs,
     required this.db,
     required this.screenTimeService,
+    required this.appMonitor,
   });
 
   @override
@@ -59,25 +70,33 @@ class PetTimeLockApp extends StatefulWidget {
 class _PetTimeLockAppState extends State<PetTimeLockApp>
     with WidgetsBindingObserver {
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _handleOverlayPendingAction();
+      if (widget.appMonitor.isEnabled) {
+        widget.appMonitor.startForegroundMonitoring();
+      }
     });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    widget.appMonitor.dispose();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      widget.appMonitor.startForegroundMonitoring();
       _handleOverlayPendingAction();
+    } else if (state == AppLifecycleState.paused) {
+      widget.appMonitor.stopForegroundMonitoring();
     }
   }
 
@@ -114,6 +133,8 @@ class _PetTimeLockAppState extends State<PetTimeLockApp>
       case OverlayPayload.overLimit:
       case OverlayPayload.focusComplete:
       case OverlayPayload.evolution:
+      case OverlayPayload.openAppLimits:
+      case OverlayPayload.openTimeSlots:
         // No special navigation; returning to home is enough.
         break;
     }
@@ -169,6 +190,7 @@ class _PetTimeLockAppState extends State<PetTimeLockApp>
       providers: [
         RepositoryProvider<DatabaseHelper>.value(value: widget.db),
         RepositoryProvider<ScreenTimeService>.value(value: widget.screenTimeService),
+        RepositoryProvider<AppMonitorService>.value(value: widget.appMonitor),
       ],
       child: MultiBlocProvider(
         providers: [
@@ -187,28 +209,36 @@ class _PetTimeLockAppState extends State<PetTimeLockApp>
           BlocProvider(
             create: (_) => TaskCubit(widget.db),
           ),
+          BlocProvider(
+            create: (_) => MonitorCubit(widget.db, widget.screenTimeService),
+          ),
         ],
-        child: MaterialApp(
-          title: '宠物时间锁',
-          debugShowCheckedModeBanner: false,
-          navigatorKey: _navigatorKey,
-          theme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: Colors.blue,
-              brightness: Brightness.light,
-            ),
-            useMaterial3: true,
-            fontFamily: 'NotoSansSC',
-          ),
-          darkTheme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: Colors.blue,
-              brightness: Brightness.dark,
-            ),
-            useMaterial3: true,
-            fontFamily: 'NotoSansSC',
-          ),
-          home: const HomeScreen(),
+        child: Builder(
+          builder: (context) {
+            widget.appMonitor.setPetCubit(context.read<PetCubit>());
+            return MaterialApp(
+              title: '宠物时间锁',
+              debugShowCheckedModeBanner: false,
+              navigatorKey: _navigatorKey,
+              theme: ThemeData(
+                colorScheme: ColorScheme.fromSeed(
+                  seedColor: Colors.blue,
+                  brightness: Brightness.light,
+                ),
+                useMaterial3: true,
+                fontFamily: 'NotoSansSC',
+              ),
+              darkTheme: ThemeData(
+                colorScheme: ColorScheme.fromSeed(
+                  seedColor: Colors.blue,
+                  brightness: Brightness.dark,
+                ),
+                useMaterial3: true,
+                fontFamily: 'NotoSansSC',
+              ),
+              home: const HomeScreen(),
+            );
+          },
         ),
       ),
     );

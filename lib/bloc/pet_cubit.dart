@@ -299,17 +299,96 @@ class PetCubit extends Cubit<PetManagerState> {
     );
   }
 
-  Future onAppOverLimit() async {
+  Future<void> onAppOverLimit({
+    String? packageName,
+    String? appName,
+    int? overMinutes,
+    int progressiveExtra = 0,
+  }) async {
     if (state.petState == null) return;
 
+    final key = packageName != null
+        ? 'penalty_${packageName}_${DateTime.now().hour}'
+        : 'penalty_overlimit_${DateTime.now().hour}';
+    final lastPenalty = _prefs.getInt(key) ?? 0;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (now - lastPenalty < 5 * 60 * 1000) return;
+    await _prefs.setInt(key, now);
+
+    final disciplinePenalty = -10 - progressiveExtra * 2;
+    final happinessPenalty = -5 - progressiveExtra;
+
     final updated = state.petState!.copyWith(
-      discipline: _clamp(state.petState!.discipline - 10),
-      happiness: _clamp(state.petState!.happiness - 5),
+      discipline: _clamp(state.petState!.discipline + disciplinePenalty),
+      happiness: _clamp(state.petState!.happiness + happinessPenalty),
       lastUpdatedAt: DateTime.now(),
     );
 
-    await _db.updatePetState(updated);
-    emit(state.copyWith(petState: updated));
+    await _applyAndEmit(
+      updated,
+      successMessage: '',
+      type: InteractionType.pet,
+    );
+  }
+
+  /// Called when a time-slot restriction is violated.
+  Future<void> onTimeSlotViolation({
+    String? packageName,
+    String? appName,
+    int progressiveExtra = 0,
+  }) async {
+    if (state.petState == null) return;
+
+    final key = packageName != null
+        ? 'slot_penalty_${packageName}_${DateTime.now().hour}'
+        : 'slot_penalty_${DateTime.now().hour}';
+    final lastPenalty = _prefs.getInt(key) ?? 0;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (now - lastPenalty < 10 * 60 * 1000) return;
+    await _prefs.setInt(key, now);
+
+    final disciplinePenalty = -15 - progressiveExtra * 2;
+    final happinessPenalty = -10 - progressiveExtra;
+
+    final updated = state.petState!.copyWith(
+      discipline: _clamp(state.petState!.discipline + disciplinePenalty),
+      happiness: _clamp(state.petState!.happiness + happinessPenalty),
+      health: _clamp(state.petState!.health - 5),
+      lastUpdatedAt: DateTime.now(),
+    );
+
+    await _applyAndEmit(
+      updated,
+      successMessage: '',
+      type: InteractionType.pet,
+    );
+  }
+
+  /// Called when the user respects all limits for the day.
+  Future<void> onComplianceDay({
+    required int streak,
+    required int happiness,
+    required int discipline,
+    required int health,
+    required int xp,
+    required int coins,
+  }) async {
+    if (state.petState == null) return;
+
+    final updated = state.petState!.copyWith(
+      happiness: _clamp(state.petState!.happiness + happiness),
+      discipline: _clamp(state.petState!.discipline + discipline),
+      health: _clamp(state.petState!.health + health),
+      growthXp: state.petState!.growthXp + xp,
+      growthCoins: state.petState!.growthCoins + coins,
+      lastUpdatedAt: DateTime.now(),
+    );
+
+    await _applyAndEmit(
+      updated,
+      successMessage: '',
+      type: InteractionType.pet,
+    );
   }
 
   Future<InteractionResult> answerQuestionCorrectly(String subject, int grade) async {

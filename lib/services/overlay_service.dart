@@ -221,6 +221,8 @@ class OverlayService {
       OverlayTrigger.focusComplete => OverlayConstants.triggerFocusCompleteEnabled,
       OverlayTrigger.overLimit => OverlayConstants.triggerOverLimitEnabled,
       OverlayTrigger.evolution => OverlayConstants.triggerEvolutionEnabled,
+      OverlayTrigger.timeSlotBlock => OverlayConstants.triggerTimeSlotBlockEnabled,
+      OverlayTrigger.complianceReward => OverlayConstants.triggerComplianceRewardEnabled,
     };
     return prefs.getBool(key) ?? true;
   }
@@ -232,6 +234,8 @@ class OverlayService {
       OverlayTrigger.focusComplete => OverlayConstants.triggerFocusCompleteEnabled,
       OverlayTrigger.overLimit => OverlayConstants.triggerOverLimitEnabled,
       OverlayTrigger.evolution => OverlayConstants.triggerEvolutionEnabled,
+      OverlayTrigger.timeSlotBlock => OverlayConstants.triggerTimeSlotBlockEnabled,
+      OverlayTrigger.complianceReward => OverlayConstants.triggerComplianceRewardEnabled,
     };
     await prefs.setBool(key, enabled);
   }

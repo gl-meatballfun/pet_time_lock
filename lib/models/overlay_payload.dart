@@ -8,7 +8,9 @@ enum OverlayPayload {
   openApp('open_app'),
   overLimit('over_limit'),
   focusComplete('focus_complete'),
-  evolution('evolution');
+  evolution('evolution'),
+  openAppLimits('open_app_limits'),
+  openTimeSlots('open_time_slots');
 
   final String value;
   const OverlayPayload(this.value);
@@ -26,13 +28,17 @@ enum OverlayPayload {
 enum OverlayTrigger {
   focusComplete,
   overLimit,
-  evolution;
+  evolution,
+  timeSlotBlock,
+  complianceReward;
 
   String get message {
     return switch (this) {
       OverlayTrigger.focusComplete => '专注完成啦！太棒了~',
       OverlayTrigger.overLimit => '你用手机有点久啦，休息一下吧~',
       OverlayTrigger.evolution => '我进化啦！快回来看看~',
+      OverlayTrigger.timeSlotBlock => '现在是限制时段，不要玩啦~',
+      OverlayTrigger.complianceReward => '今天表现超棒！所有限额都遵守了~',
     };
   }
 

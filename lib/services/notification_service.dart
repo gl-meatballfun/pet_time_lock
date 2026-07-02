@@ -9,8 +9,10 @@ class NotificationService {
 
   final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();
+  bool _initialized = false;
 
   Future<void> initialize() async {
+    if (_initialized) return;
     tz.initializeTimeZones();
 
     const androidSettings =
@@ -30,6 +32,7 @@ class NotificationService {
       initSettings,
       onDidReceiveNotificationResponse: _onNotificationTap,
     );
+    _initialized = true;
   }
 
   void _onNotificationTap(NotificationResponse response) {
@@ -84,9 +87,79 @@ class NotificationService {
     );
   }
 
+  Future<void> showAppOverLimitNotification({
+    required String appName,
+    required int limitMinutes,
+    required int actualMinutes,
+  }) async {
+    await initialize();
+    const androidDetails = AndroidNotificationDetails(
+      'limit_channel',
+      '应用限额提醒',
+      channelDescription: '应用每日使用限额提醒',
+      importance: Importance.high,
+      priority: Priority.high,
+      ticker: '应用限额提醒',
+    );
+
+    const notificationDetails = NotificationDetails(android: androidDetails);
+
+    await _notifications.show(
+      3,
+      '$appName 已超时',
+      '限额 $limitMinutes 分钟，已使用 $actualMinutes 分钟，休息一下吧~',
+      notificationDetails,
+    );
+  }
+
+  Future<void> showTimeSlotRestrictionNotification({
+    required String slotName,
+    required String blockedAppName,
+  }) async {
+    await initialize();
+    const androidDetails = AndroidNotificationDetails(
+      'slot_channel',
+      '时段限制提醒',
+      channelDescription: '限制时段使用应用提醒',
+      importance: Importance.high,
+      priority: Priority.high,
+      ticker: '时段限制提醒',
+    );
+
+    const notificationDetails = NotificationDetails(android: androidDetails);
+
+    await _notifications.show(
+      4,
+      '$slotName：$blockedAppName 被限制',
+      '现在是限制时段，不要玩手机啦，陪陪宠物吧~',
+      notificationDetails,
+    );
+  }
+
+  Future<void> showComplianceRewardNotification() async {
+    await initialize();
+    const androidDetails = AndroidNotificationDetails(
+      'reward_channel',
+      '合规奖励',
+      channelDescription: '每日屏幕时间合规奖励',
+      importance: Importance.defaultImportance,
+      priority: Priority.defaultPriority,
+      ticker: '合规奖励',
+    );
+
+    const notificationDetails = NotificationDetails(android: androidDetails);
+
+    await _notifications.show(
+      5,
+      '今天表现超棒！',
+      '所有应用限额都遵守了，宠物获得额外奖励~',
+      notificationDetails,
+    );
+  }
+
   Future<void> scheduleDailyReminder({required int hour, required int minute}) async {
     await _notifications.zonedSchedule(
-      3,
+      6,
       '该休息啦',
       '今天用手机时间有点长，让眼睛休息一下，陪陪宠物吧。',
       _nextInstanceOfTime(hour, minute),

@@ -4,6 +4,7 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../models/app_models.dart';
+import '../models/compliance_models.dart';
 import '../models/currency_models.dart';
 import '../models/task_models.dart';
 import 'seed_data.dart';
@@ -32,7 +33,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 4,
+      version: 5,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -146,6 +147,59 @@ class DatabaseHelper {
     if (oldVersion < 4) {
       // 新增宠物状态版本号，用于悬浮窗跨引擎同步
       await db.execute('ALTER TABLE pet_state ADD COLUMN version INTEGER DEFAULT 0');
+    }
+
+    if (oldVersion < 5) {
+      // Phase 2: 应用限额与时段限制
+      await db.execute('''
+        CREATE TABLE time_slots (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          start_time TEXT NOT NULL,
+          end_time TEXT NOT NULL,
+          days_of_week TEXT,
+          is_active INTEGER DEFAULT 1,
+          block_entertainment INTEGER DEFAULT 1,
+          block_all INTEGER DEFAULT 0
+        )
+      ''');
+
+      await db.execute('''
+        CREATE TABLE compliance_records (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          date TEXT NOT NULL,
+          package_name TEXT,
+          limit_minutes INTEGER,
+          actual_minutes INTEGER DEFAULT 0,
+          was_compliant INTEGER DEFAULT 1,
+          pet_rewarded INTEGER DEFAULT 0,
+          UNIQUE(date, package_name)
+        )
+      ''');
+
+      await db.execute('''
+        CREATE TABLE violation_logs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          package_name TEXT NOT NULL,
+          app_name TEXT,
+          violation_type TEXT,
+          limit_minutes INTEGER,
+          actual_minutes INTEGER,
+          timestamp TEXT,
+          pet_penalized INTEGER DEFAULT 0
+        )
+      ''');
+
+      await db.execute('''
+        CREATE TABLE app_whitelist (
+          package_name TEXT PRIMARY KEY,
+          app_name TEXT,
+          reason TEXT,
+          is_always_allowed INTEGER DEFAULT 1
+        )
+      ''');
+
+      await _seedWhitelist(db);
     }
   }
 
@@ -332,7 +386,56 @@ class DatabaseHelper {
       )
     ''');
 
+    await db.execute('''
+      CREATE TABLE time_slots (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        start_time TEXT NOT NULL,
+        end_time TEXT NOT NULL,
+        days_of_week TEXT,
+        is_active INTEGER DEFAULT 1,
+        block_entertainment INTEGER DEFAULT 1,
+        block_all INTEGER DEFAULT 0
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE compliance_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL,
+        package_name TEXT,
+        limit_minutes INTEGER,
+        actual_minutes INTEGER DEFAULT 0,
+        was_compliant INTEGER DEFAULT 1,
+        pet_rewarded INTEGER DEFAULT 0,
+        UNIQUE(date, package_name)
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE violation_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        package_name TEXT NOT NULL,
+        app_name TEXT,
+        violation_type TEXT,
+        limit_minutes INTEGER,
+        actual_minutes INTEGER,
+        timestamp TEXT,
+        pet_penalized INTEGER DEFAULT 0
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE app_whitelist (
+        package_name TEXT PRIMARY KEY,
+        app_name TEXT,
+        reason TEXT,
+        is_always_allowed INTEGER DEFAULT 1
+      )
+    ''');
+
     await _seedData(db);
+    await _seedWhitelist(db);
   }
 
   Future _seedData(Database db) async {
@@ -355,6 +458,21 @@ class DatabaseHelper {
     final batch = db.batch();
     for (final item in SeedData.shopItems) {
       batch.insert('shop_items', item.toMap(), conflictAlgorithm: ConflictAlgorithm.ignore);
+    }
+    await batch.commit(noResult: true);
+  }
+
+  Future _seedWhitelist(Database db) async {
+    final defaults = [
+      const AppWhitelistEntry(packageName: 'com.android.dialer', appName: '电话', reason: 'emergency'),
+      const AppWhitelistEntry(packageName: 'com.google.android.dialer', appName: '电话', reason: 'emergency'),
+      const AppWhitelistEntry(packageName: 'com.android.messaging', appName: '短信', reason: 'emergency'),
+      const AppWhitelistEntry(packageName: 'com.android.settings', appName: '设置', reason: 'system'),
+      const AppWhitelistEntry(packageName: 'com.example.pet_time_lock', appName: '宠物时间锁', reason: 'self'),
+    ];
+    final batch = db.batch();
+    for (final entry in defaults) {
+      batch.insert('app_whitelist', entry.toMap(), conflictAlgorithm: ConflictAlgorithm.ignore);
     }
     await batch.commit(noResult: true);
   }
@@ -777,6 +895,136 @@ class DatabaseHelper {
 
   static String formatDate(DateTime date) {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
+
+  // Time Slots
+  Future<List<TimeSlot>> getTimeSlots() async {
+    final db = await database;
+    final maps = await db.query('time_slots', orderBy: 'start_time');
+    return maps.map((m) => TimeSlot.fromMap(m)).toList();
+  }
+
+  Future<List<TimeSlot>> getActiveTimeSlots() async {
+    final db = await database;
+    final maps = await db.query(
+      'time_slots',
+      where: 'is_active = ?',
+      whereArgs: [1],
+      orderBy: 'start_time',
+    );
+    return maps.map((m) => TimeSlot.fromMap(m)).toList();
+  }
+
+  Future<int> insertTimeSlot(TimeSlot slot) async {
+    final db = await database;
+    return await db.insert('time_slots', slot.toMap());
+  }
+
+  Future<int> updateTimeSlot(TimeSlot slot) async {
+    final db = await database;
+    return await db.update(
+      'time_slots',
+      slot.toMap(),
+      where: 'id = ?',
+      whereArgs: [slot.id],
+    );
+  }
+
+  Future<int> deleteTimeSlot(int id) async {
+    final db = await database;
+    return await db.delete('time_slots', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // Compliance Records
+  Future<ComplianceRecord?> getComplianceRecord(String date, String? packageName) async {
+    final db = await database;
+    final maps = await db.query(
+      'compliance_records',
+      where: 'date = ? AND (package_name = ? OR (package_name IS NULL AND ? IS NULL))',
+      whereArgs: [date, packageName, packageName],
+      limit: 1,
+    );
+    if (maps.isNotEmpty) return ComplianceRecord.fromMap(maps.first);
+    return null;
+  }
+
+  Future<int> insertOrUpdateComplianceRecord(ComplianceRecord record) async {
+    final db = await database;
+    return await db.insert(
+      'compliance_records',
+      record.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<ComplianceRecord>> getComplianceRecordsForDate(String date) async {
+    final db = await database;
+    final maps = await db.query(
+      'compliance_records',
+      where: 'date = ?',
+      whereArgs: [date],
+    );
+    return maps.map((m) => ComplianceRecord.fromMap(m)).toList();
+  }
+
+  // Violation Logs
+  Future<int> insertViolationLog(ViolationLog log) async {
+    final db = await database;
+    return await db.insert('violation_logs', log.toMap());
+  }
+
+  Future<List<ViolationLog>> getViolationsForDate(String date) async {
+    final db = await database;
+    final maps = await db.rawQuery(
+      'SELECT * FROM violation_logs WHERE date(timestamp) = ? ORDER BY timestamp DESC',
+      [date],
+    );
+    return maps.map((m) => ViolationLog.fromMap(m)).toList();
+  }
+
+  Future<int> getViolationCountForDate(String date) async {
+    final db = await database;
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM violation_logs WHERE date(timestamp) = ?',
+      [date],
+    );
+    return (result.first['count'] as int?) ?? 0;
+  }
+
+  // Whitelist
+  Future<List<AppWhitelistEntry>> getWhitelist() async {
+    final db = await database;
+    final maps = await db.query('app_whitelist');
+    return maps.map((m) => AppWhitelistEntry.fromMap(m)).toList();
+  }
+
+  Future<bool> isWhitelisted(String packageName) async {
+    final db = await database;
+    final maps = await db.query(
+      'app_whitelist',
+      where: 'package_name = ? AND is_always_allowed = 1',
+      whereArgs: [packageName],
+      limit: 1,
+    );
+    return maps.isNotEmpty;
+  }
+
+  Future<int> addWhitelistEntry(AppWhitelistEntry entry) async {
+    final db = await database;
+    return await db.insert(
+      'app_whitelist',
+      entry.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<int> removeWhitelistEntry(String packageName) async {
+    final db = await database;
+    return await db.delete(
+      'app_whitelist',
+      where: 'package_name = ?',
+      whereArgs: [packageName],
+    );
   }
 
   Future close() async {

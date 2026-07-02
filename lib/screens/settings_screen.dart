@@ -6,10 +6,13 @@ import '../data/database_helper.dart';
 import '../models/app_models.dart';
 import '../models/overlay_payload.dart';
 import '../constants/overlay_constants.dart';
+import '../services/app_monitor_service.dart';
 import '../services/notification_service.dart';
 import '../services/overlay_service.dart';
 import '../services/screen_time_service.dart';
+import 'app_limits_screen.dart';
 import 'grade_select_screen.dart';
+import 'time_slots_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -35,6 +38,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _triggerFocusComplete = true;
   bool _triggerOverLimit = true;
   bool _triggerEvolution = true;
+  bool _triggerTimeSlotBlock = true;
+  bool _triggerComplianceReward = true;
+  bool _monitoringEnabled = true;
+  int _monitoringIntervalSeconds = 30;
+  bool _monitoringSupported = false;
 
   @override
   void initState() {
@@ -47,6 +55,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final prefs = await _prefsFuture;
     final limits = await _db.getAppLimits();
     final overlayService = OverlayService();
+    final monitorService = AppMonitorService(
+      prefs: prefs,
+      db: _db,
+      screenTimeService: context.read<ScreenTimeService>(),
+    );
     setState(() {
       _appLimits = limits;
       _notificationsEnabled = prefs.getBool('notifications_enabled') ?? false;
@@ -64,6 +77,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           prefs.getBool(OverlayConstants.triggerOverLimitEnabled) ?? true;
       _triggerEvolution =
           prefs.getBool(OverlayConstants.triggerEvolutionEnabled) ?? true;
+      _triggerTimeSlotBlock =
+          prefs.getBool(OverlayConstants.triggerTimeSlotBlockEnabled) ?? true;
+      _triggerComplianceReward =
+          prefs.getBool(OverlayConstants.triggerComplianceRewardEnabled) ?? true;
+      _monitoringEnabled = monitorService.isEnabled;
+      _monitoringIntervalSeconds = monitorService.foregroundIntervalSeconds;
+      _monitoringSupported = monitorService.isSupported;
     });
     if (_overlaySupported) {
       final permitted = await overlayService.hasPermission();
@@ -139,80 +159,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Future _addAppLimit() async {
-    final packageNameController = TextEditingController();
-    final appNameController = TextEditingController();
-    int limitMinutes = 30;
-
-    await showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('添加应用限额'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: packageNameController,
-              decoration: const InputDecoration(
-                labelText: '应用包名（如 com.tencent.mm）',
-                hintText: 'com.tencent.mm',
-              ),
-            ),
-            TextField(
-              controller: appNameController,
-              decoration: const InputDecoration(
-                labelText: '应用名称',
-                hintText: '微信',
-              ),
-            ),
-            const SizedBox(height: 16),
-            StatefulBuilder(
-              builder: (context, setDialogState) => Column(
-                children: [
-                  Text('每日限额：$limitMinutes 分钟'),
-                  Slider(
-                    value: limitMinutes.toDouble(),
-                    min: 5,
-                    max: 180,
-                    divisions: 35,
-                    label: '$limitMinutes 分钟',
-                    onChanged: (value) {
-                      setDialogState(() {
-                        limitMinutes = value.toInt();
-                      });
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
-          TextButton(
-            onPressed: () async {
-              if (packageNameController.text.isNotEmpty &&
-                  appNameController.text.isNotEmpty) {
-                final limit = AppLimit(
-                  packageName: packageNameController.text.trim(),
-                  appName: appNameController.text.trim(),
-                  dailyLimitMinutes: limitMinutes,
-                );
-                await _db.insertOrUpdateAppLimit(limit);
-                await _loadSettings();
-                if (context.mounted) Navigator.pop(context);
-              }
-            },
-            child: const Text('保存'),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future _requestUsageStatsPermission() async {
     final service = context.read<ScreenTimeService>();
     await service.requestAuthorization();
@@ -270,17 +216,68 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           _buildSectionTitle('应用限额'),
-          ..._appLimits.map((limit) => ListTile(
-                leading: const Icon(Icons.apps),
-                title: Text(limit.appName),
-                subtitle: Text('包名：${limit.packageName}'),
-                trailing: Text('${limit.dailyLimitMinutes} 分钟/天'),
-              )),
           ListTile(
-            leading: const Icon(Icons.add),
-            title: const Text('添加应用限额'),
-            onTap: _addAppLimit,
+            leading: const Icon(Icons.apps),
+            title: const Text('管理应用限额'),
+            subtitle: Text('已设置 ${_appLimits.length} 个应用'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AppLimitsScreen()),
+            ),
           ),
+          _buildSectionTitle('时段限制'),
+          ListTile(
+            leading: const Icon(Icons.schedule),
+            title: const Text('管理时段限制'),
+            subtitle: const Text('设置禁用时段，如睡前时间'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const TimeSlotsScreen()),
+            ),
+          ),
+          _buildSectionTitle('监控设置'),
+          if (!_monitoringSupported)
+            const ListTile(
+              leading: Icon(Icons.phone_iphone),
+              title: Text('使用监控'),
+              subtitle: Text('iOS / Web 平台暂不支持自动监控，仅作演示'),
+            )
+          else
+            Column(
+              children: [
+                SwitchListTile(
+                  title: const Text('启用使用监控'),
+                  subtitle: const Text('自动检测应用是否超时'),
+                  value: _monitoringEnabled,
+                  onChanged: (value) async {
+                    final monitor = context.read<AppMonitorService>();
+                    await monitor.setEnabled(value);
+                    setState(() => _monitoringEnabled = value);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.timer),
+                  title: const Text('前台检测间隔'),
+                  subtitle: Text('$_monitoringIntervalSeconds 秒'),
+                  trailing: DropdownButton<int>(
+                    value: _monitoringIntervalSeconds,
+                    items: const [
+                      DropdownMenuItem(value: 10, child: Text('10 秒')),
+                      DropdownMenuItem(value: 30, child: Text('30 秒')),
+                      DropdownMenuItem(value: 60, child: Text('60 秒')),
+                    ],
+                    onChanged: (value) async {
+                      if (value == null) return;
+                      final monitor = context.read<AppMonitorService>();
+                      await monitor.setForegroundInterval(value);
+                      setState(() => _monitoringIntervalSeconds = value);
+                    },
+                  ),
+                ),
+              ],
+            ),
           _buildSectionTitle('提醒通知'),
           SwitchListTile(
             title: const Text('启用通知'),
@@ -417,6 +414,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       setState(() => _triggerEvolution = value);
                       await OverlayService().setTriggerEnabled(
                         OverlayTrigger.evolution,
+                        value,
+                      );
+                    },
+                  ),
+                  SwitchListTile(
+                    title: const Text('时段限制提醒'),
+                    subtitle: const Text('限制时段使用应用时弹出提示'),
+                    value: _triggerTimeSlotBlock,
+                    onChanged: (value) async {
+                      setState(() => _triggerTimeSlotBlock = value);
+                      await OverlayService().setTriggerEnabled(
+                        OverlayTrigger.timeSlotBlock,
+                        value,
+                      );
+                    },
+                  ),
+                  SwitchListTile(
+                    title: const Text('合规奖励提醒'),
+                    subtitle: const Text('全天遵守限额时弹出庆祝'),
+                    value: _triggerComplianceReward,
+                    onChanged: (value) async {
+                      setState(() => _triggerComplianceReward = value);
+                      await OverlayService().setTriggerEnabled(
+                        OverlayTrigger.complianceReward,
                         value,
                       );
                     },
