@@ -42,7 +42,10 @@ class FakeDatabaseHelper implements DatabaseHelper {
 
   @override
   Future<int> updatePetState(PetState petState) async {
-    _petState = petState;
+    _petState = petState.copyWith(
+      lastUpdatedAt: DateTime.now(),
+      version: petState.version + 1,
+    );
     return 1;
   }
 

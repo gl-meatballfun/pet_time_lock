@@ -58,11 +58,14 @@ class PetTimeLockApp extends StatefulWidget {
 
 class _PetTimeLockAppState extends State<PetTimeLockApp>
     with WidgetsBindingObserver {
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _handleOverlayPendingAction();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _handleOverlayPendingAction();
+    });
   }
 
   @override
@@ -118,7 +121,8 @@ class _PetTimeLockAppState extends State<PetTimeLockApp>
 
   void _navigateTo(Widget screen) {
     if (!mounted) return;
-    final navigator = Navigator.of(context);
+    final navigator = _navigatorKey.currentState;
+    if (navigator == null) return;
     navigator.pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => screen),
       (route) => false,
@@ -131,7 +135,8 @@ class _PetTimeLockAppState extends State<PetTimeLockApp>
     TaskType? taskType,
   }) async {
     if (!mounted) return;
-    final navigator = Navigator.of(context);
+    final navigator = _navigatorKey.currentState;
+    if (navigator == null) return;
     navigator.pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const HomeScreen()),
       (route) => false,
@@ -186,6 +191,7 @@ class _PetTimeLockAppState extends State<PetTimeLockApp>
         child: MaterialApp(
           title: '宠物时间锁',
           debugShowCheckedModeBanner: false,
+          navigatorKey: _navigatorKey,
           theme: ThemeData(
             colorScheme: ColorScheme.fromSeed(
               seedColor: Colors.blue,

@@ -4,6 +4,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/database_helper.dart';
 import '../models/app_models.dart';
+import '../models/overlay_payload.dart';
+import '../constants/overlay_constants.dart';
 import '../services/notification_service.dart';
 import '../services/overlay_service.dart';
 import '../services/screen_time_service.dart';
@@ -28,6 +30,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _overlayPermissionGranted = false;
   int _dailyReminderHour = 21;
   int _dailyReminderMinute = 30;
+  double _overlayOpacity = OverlayConstants.defaultOpacity;
+  int _triggerDurationMs = OverlayConstants.defaultTriggerDurationMs;
+  bool _triggerFocusComplete = true;
+  bool _triggerOverLimit = true;
+  bool _triggerEvolution = true;
 
   @override
   void initState() {
@@ -45,8 +52,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _notificationsEnabled = prefs.getBool('notifications_enabled') ?? false;
       _dailyReminderHour = prefs.getInt('daily_reminder_hour') ?? 21;
       _dailyReminderMinute = prefs.getInt('daily_reminder_minute') ?? 30;
-      _overlayEnabled = prefs.getBool('overlay_enabled') ?? false;
+      _overlayEnabled = prefs.getBool(OverlayConstants.overlayEnabled) ?? false;
       _overlaySupported = overlayService.isSupported;
+      _overlayOpacity = prefs.getDouble(OverlayConstants.overlayOpacity) ??
+          OverlayConstants.defaultOpacity;
+      _triggerDurationMs = prefs.getInt(OverlayConstants.overlayTriggerDurationMs) ??
+          OverlayConstants.defaultTriggerDurationMs;
+      _triggerFocusComplete =
+          prefs.getBool(OverlayConstants.triggerFocusCompleteEnabled) ?? true;
+      _triggerOverLimit =
+          prefs.getBool(OverlayConstants.triggerOverLimitEnabled) ?? true;
+      _triggerEvolution =
+          prefs.getBool(OverlayConstants.triggerEvolutionEnabled) ?? true;
     });
     if (_overlaySupported) {
       final permitted = await overlayService.hasPermission();
@@ -308,17 +325,104 @@ class _SettingsScreenState extends State<SettingsScreen> {
               subtitle: Text('iOS 系统暂不支持全局悬浮窗，可在 App 内与宠物互动'),
             )
           else
-            SwitchListTile(
-              title: const Text('桌面悬浮宠物'),
-              subtitle: Text(
-                _overlayPermissionGranted
-                    ? '宠物会常驻桌面，随时陪伴你'
-                    : '需要悬浮窗权限，开启后宠物会出现在桌面',
-              ),
-              value: _overlayEnabled,
-              onChanged: (value) async {
-                await _onOverlayChanged(value);
-              },
+            Column(
+              children: [
+                SwitchListTile(
+                  title: const Text('桌面悬浮宠物'),
+                  subtitle: Text(
+                    _overlayPermissionGranted
+                        ? '宠物会常驻桌面，随时陪伴你'
+                        : '需要悬浮窗权限，开启后宠物会出现在桌面',
+                  ),
+                  value: _overlayEnabled,
+                  onChanged: (value) async {
+                    await _onOverlayChanged(value);
+                  },
+                ),
+                if (!_overlayPermissionGranted)
+                  ListTile(
+                    leading: const Icon(Icons.warning_amber_rounded),
+                    title: const Text('悬浮窗权限未开启'),
+                    subtitle: const Text('点击重新跳转系统设置授权'),
+                    trailing: TextButton(
+                      onPressed: () => OverlayService().requestPermission(),
+                      child: const Text('去开启'),
+                    ),
+                  ),
+                if (_overlayEnabled) ...[
+                  ListTile(
+                    leading: const Icon(Icons.opacity),
+                    title: const Text('悬浮宠物透明度'),
+                    subtitle: Slider(
+                      value: _overlayOpacity,
+                      min: 0.3,
+                      max: 1.0,
+                      divisions: 7,
+                      label: '${(_overlayOpacity * 100).toInt()}%',
+                      onChanged: (value) async {
+                        setState(() => _overlayOpacity = value);
+                        await OverlayService().setOpacity(value);
+                      },
+                    ),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.timer),
+                    title: const Text('提醒弹窗时长'),
+                    subtitle: Text('${_triggerDurationMs ~/ 1000} 秒'),
+                    trailing: DropdownButton<int>(
+                      value: _triggerDurationMs,
+                      items: const [
+                        DropdownMenuItem(value: 5000, child: Text('5 秒')),
+                        DropdownMenuItem(value: 8000, child: Text('8 秒')),
+                        DropdownMenuItem(value: 10000, child: Text('10 秒')),
+                      ],
+                      onChanged: (value) async {
+                        if (value == null) return;
+                        setState(() => _triggerDurationMs = value);
+                        await OverlayService().setTriggerDuration(
+                          Duration(milliseconds: value),
+                        );
+                      },
+                    ),
+                  ),
+                  SwitchListTile(
+                    title: const Text('专注完成提醒'),
+                    subtitle: const Text('专注结束后弹出宠物庆祝'),
+                    value: _triggerFocusComplete,
+                    onChanged: (value) async {
+                      setState(() => _triggerFocusComplete = value);
+                      await OverlayService().setTriggerEnabled(
+                        OverlayTrigger.focusComplete,
+                        value,
+                      );
+                    },
+                  ),
+                  SwitchListTile(
+                    title: const Text('使用超时提醒'),
+                    subtitle: const Text('超额使用手机时弹出宠物提醒'),
+                    value: _triggerOverLimit,
+                    onChanged: (value) async {
+                      setState(() => _triggerOverLimit = value);
+                      await OverlayService().setTriggerEnabled(
+                        OverlayTrigger.overLimit,
+                        value,
+                      );
+                    },
+                  ),
+                  SwitchListTile(
+                    title: const Text('宠物进化提醒'),
+                    subtitle: const Text('宠物进化时弹出提示'),
+                    value: _triggerEvolution,
+                    onChanged: (value) async {
+                      setState(() => _triggerEvolution = value);
+                      await OverlayService().setTriggerEnabled(
+                        OverlayTrigger.evolution,
+                        value,
+                      );
+                    },
+                  ),
+                ],
+              ],
             ),
           _buildSectionTitle('数据'),
           ListTile(

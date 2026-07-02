@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 
+import '../constants/overlay_constants.dart';
 import '../data/database_helper.dart';
 import '../models/app_models.dart';
 import '../models/currency_models.dart';
@@ -37,18 +38,24 @@ class _OverlayAppState extends State<OverlayApp> {
   Timer? _triggerTimer;
   Timer? _autoCollapseTimer;
   Timer? _refreshTimer;
+  int _knownVersion = -1;
+  double _opacity = OverlayConstants.defaultOpacity;
 
   @override
   void initState() {
     super.initState();
-    _loadPetState();
+    _loadOpacity();
+    _loadPetState(force: true);
     _setupOverlayListeners();
 
     // Refresh from the database periodically while the overlay is visible.
-    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      _loadPetState();
-    });
+    _refreshTimer = Timer.periodic(
+      const Duration(seconds: OverlayConstants.refreshIntervalSeconds),
+      (_) => _loadPetState(),
+    );
   }
+
+  DateTime? _lastToggleTime;
 
   @override
   void dispose() {
@@ -58,9 +65,21 @@ class _OverlayAppState extends State<OverlayApp> {
     super.dispose();
   }
 
-  Future<void> _loadPetState() async {
+  Future<void> _loadOpacity() async {
+    _opacity = await OverlayService().opacity();
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _loadPetState({bool force = false}) async {
     try {
       final pet = await DatabaseHelper.instance.getPetState();
+      if (pet == null) return;
+
+      if (!force && pet.version == _knownVersion) {
+        // Nothing changed since the last successful load.
+        return;
+      }
+
       final inventory = await DatabaseHelper.instance.getAllInventory();
       String? equipped;
       for (final item in inventory) {
@@ -77,25 +96,40 @@ class _OverlayAppState extends State<OverlayApp> {
           _petState = pet;
           _equippedAccessory = equipped;
         });
+        _knownVersion = pet.version;
+        _sendRefreshAck(pet.version);
       }
     } catch (e) {
       debugPrint('Overlay failed to load pet state: $e');
     }
   }
 
+  void _sendRefreshAck(int version) {
+    FlutterOverlayWindow.shareData({
+      OverlayConstants.fieldAction: OverlayConstants.actionAckRefresh,
+      OverlayConstants.fieldVersion: version,
+    });
+  }
+
   void _setupOverlayListeners() {
     FlutterOverlayWindow.overlayListener.listen((event) {
       if (event is! Map) return;
 
-      final action = event['action'] as String?;
+      final action = event[OverlayConstants.fieldAction] as String?;
       switch (action) {
-        case 'refresh_pet':
-          _loadPetState();
+        case OverlayConstants.actionRefreshPet:
+          final version = event[OverlayConstants.fieldVersion] as int?;
+          if (version != null && version == _knownVersion) {
+            // Already up to date; acknowledge without re-reading.
+            _sendRefreshAck(version);
+          } else {
+            _loadPetState();
+          }
           break;
-        case 'show_trigger':
+        case OverlayConstants.actionShowTrigger:
           _handleTriggerEvent(event);
           break;
-        case 'collapse':
+        case OverlayConstants.actionCollapse:
           _collapse();
           break;
       }
@@ -103,8 +137,10 @@ class _OverlayAppState extends State<OverlayApp> {
   }
 
   void _handleTriggerEvent(Map<dynamic, dynamic> event) {
-    final triggerName = event['trigger'] as String?;
-    final message = event['message'] as String?;
+    final triggerName = event[OverlayConstants.fieldTrigger] as String?;
+    final message = event[OverlayConstants.fieldMessage] as String?;
+    final durationMs = event[OverlayConstants.fieldDuration] as int? ??
+        OverlayConstants.defaultTriggerDurationMs;
     final trigger = OverlayTrigger.values.firstWhere(
       (t) => t.name == triggerName,
       orElse: () => OverlayTrigger.focusComplete,
@@ -118,8 +154,8 @@ class _OverlayAppState extends State<OverlayApp> {
       _isExpanded = false;
     });
 
-    // Return to the normal collapsed state after 8 seconds.
-    _triggerTimer = Timer(const Duration(seconds: 8), () {
+    // Return to the normal collapsed state after the configured duration.
+    _triggerTimer = Timer(Duration(milliseconds: durationMs), () {
       if (mounted) {
         setState(() {
           _triggerMessage = null;
@@ -129,13 +165,23 @@ class _OverlayAppState extends State<OverlayApp> {
   }
 
   void _toggleExpanded() {
+    final now = DateTime.now();
+    if (_lastToggleTime != null &&
+        now.difference(_lastToggleTime!) < const Duration(milliseconds: 300)) {
+      return;
+    }
+    _lastToggleTime = now;
+
     setState(() => _isExpanded = !_isExpanded);
 
     _autoCollapseTimer?.cancel();
     if (_isExpanded) {
-      _autoCollapseTimer = Timer(const Duration(seconds: 5), () {
-        if (mounted) _collapse();
-      });
+      _autoCollapseTimer = Timer(
+        const Duration(milliseconds: OverlayConstants.autoCollapseDelayMs),
+        () {
+          if (mounted) _collapse();
+        },
+      );
     }
   }
 
@@ -171,20 +217,25 @@ class _OverlayAppState extends State<OverlayApp> {
         body: Stack(
           alignment: Alignment.bottomCenter,
           children: [
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Opacity(
+                opacity: _opacity,
+                child: OverlayPetWidget(
+                  petState: pet,
+                  equippedAccessory: _equippedAccessory,
+                  triggerMessage: _triggerMessage,
+                  isTriggered: _triggerMessage != null,
+                  onTap: _toggleExpanded,
+                  onLongPress: _toggleExpanded,
+                ),
+              ),
+            ),
             if (_isExpanded)
               OverlayActionMenu(
                 onActionSelected: _onActionSelected,
                 onClose: _collapse,
               ),
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: OverlayPetWidget(
-                petState: pet,
-                equippedAccessory: _equippedAccessory,
-                triggerMessage: _triggerMessage,
-                onTap: _toggleExpanded,
-              ),
-            ),
           ],
         ),
       ),

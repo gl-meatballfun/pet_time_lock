@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import '../constants/overlay_constants.dart';
 import '../models/app_models.dart';
 
 /// A compact animated pet widget for the floating overlay.
@@ -11,7 +12,9 @@ import '../models/app_models.dart';
 class OverlayPetWidget extends StatefulWidget {
   final PetState petState;
   final bool isOverLimit;
+  final bool isTriggered;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
   final VoidCallback? onDrag;
   final String? triggerMessage;
   final String? equippedAccessory;
@@ -20,8 +23,10 @@ class OverlayPetWidget extends StatefulWidget {
     super.key,
     required this.petState,
     required this.onTap,
+    this.onLongPress,
     this.onDrag,
     this.isOverLimit = false,
+    this.isTriggered = false,
     this.triggerMessage,
     this.equippedAccessory,
   });
@@ -52,6 +57,11 @@ class _OverlayPetWidgetState extends State<OverlayPetWidget>
 
   void _handleTap() {
     widget.onTap();
+    _bounce();
+  }
+
+  void _handleLongPress() {
+    widget.onLongPress?.call();
     _bounce();
   }
 
@@ -112,8 +122,15 @@ class _OverlayPetWidgetState extends State<OverlayPetWidget>
 
   @override
   Widget build(BuildContext context) {
+    final size = widget.isTriggered
+        ? OverlayConstants.triggeredPetSize
+        : OverlayConstants.collapsedPetSize;
+    final fontSize = widget.isTriggered ? 56.0 : 40.0;
+    final accessorySize = widget.isTriggered ? 28.0 : 20.0;
+
     return GestureDetector(
       onTap: _handleTap,
+      onLongPress: _handleLongPress,
       onPanUpdate: _handleDrag,
       child: AnimatedBuilder(
         animation: _idleController,
@@ -130,15 +147,15 @@ class _OverlayPetWidgetState extends State<OverlayPetWidget>
           );
         },
         child: SizedBox(
-          width: 80,
-          height: 80,
+          width: size,
+          height: size,
           child: Stack(
             alignment: Alignment.center,
             clipBehavior: Clip.none,
             children: [
               Container(
-                width: 80,
-                height: 80,
+                width: size,
+                height: size,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: _getMoodColor().withOpacity(0.9),
@@ -153,17 +170,17 @@ class _OverlayPetWidgetState extends State<OverlayPetWidget>
                 child: Center(
                   child: Text(
                     _getFace(),
-                    style: const TextStyle(fontSize: 40),
+                    style: TextStyle(fontSize: fontSize),
                   ),
                 ),
               ),
               if (_getAccessory().isNotEmpty)
                 Positioned(
                   top: -4,
-                  right: 6,
+                  right: size * 0.075,
                   child: Text(
                     _getAccessory(),
-                    style: const TextStyle(fontSize: 20),
+                    style: TextStyle(fontSize: accessorySize),
                   ),
                 ),
               if (widget.triggerMessage != null)

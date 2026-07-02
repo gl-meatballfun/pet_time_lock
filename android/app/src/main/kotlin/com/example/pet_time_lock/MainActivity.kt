@@ -12,14 +12,18 @@ import io.flutter.plugin.common.MethodChannel
 import java.util.Calendar
 
 class MainActivity : FlutterActivity() {
-    private val CHANNEL = "com.example.pet_time_lock/screen_time"
+
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        super.onCreate(savedInstanceState)
+        persistOverlayPayload(intent)
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
-            CHANNEL
+            Constants.SCREEN_TIME_CHANNEL
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "hasUsageStatsPermission" -> {
@@ -48,6 +52,21 @@ class MainActivity : FlutterActivity() {
             flutterEngine.dartExecutor.binaryMessenger,
             OverlayPlugin.CHANNEL
         ).setMethodCallHandler(OverlayPlugin(this))
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        persistOverlayPayload(intent)
+    }
+
+    private fun persistOverlayPayload(intent: Intent?) {
+        val payload = intent?.getStringExtra(Constants.FIELD_PAYLOAD)
+        if (payload != null) {
+            getSharedPreferences(Constants.OVERLAY_ENABLED, Context.MODE_PRIVATE)
+                .edit()
+                .putString(Constants.OVERLAY_PENDING_ACTION, payload)
+                .apply()
+        }
     }
 
     private fun hasUsageStatsPermission(): Boolean {

@@ -114,65 +114,74 @@ class _ContentCardDialogState extends State<ContentCardDialog>
                   const SizedBox(height: 16),
                   Flexible(
                     child: SingleChildScrollView(
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[50],
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Text(
-                          content.content,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            height: 1.7,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (content.requiresInteraction && content.question != null)
-                    _buildQuestion(context, content),
-                  if (_answered && content.explanation != null)
-                    Container(
-                      margin: const EdgeInsets.only(top: 16),
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: _isCorrect ? Colors.green[50] : Colors.orange[50],
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: _isCorrect ? Colors.green : Colors.orange,
-                        ),
-                      ),
                       child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            children: [
-                              Icon(
-                                _isCorrect ? Icons.check_circle : Icons.lightbulb,
-                                color: _isCorrect ? Colors.green : Colors.orange,
+                          if (!_isDuplicateOfQuestion(content))
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[50],
+                                borderRadius: BorderRadius.circular(16),
                               ),
-                              const SizedBox(width: 8),
-                              Text(
-                                _isCorrect ? '回答正确！' : '再想想',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: _isCorrect ? Colors.green[700] : Colors.orange[700],
+                              child: Text(
+                                content.content,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  height: 1.7,
                                 ),
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            '解析：${content.explanation}',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[700],
                             ),
-                          ),
+                          if (content.requiresInteraction && content.question != null)
+                            _buildQuestion(context, content),
+                          if (_answered && content.explanation != null)
+                            Container(
+                              margin: const EdgeInsets.only(top: 16),
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: _isCorrect ? Colors.green[50] : Colors.orange[50],
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: _isCorrect ? Colors.green : Colors.orange,
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        _isCorrect ? Icons.check_circle : Icons.lightbulb,
+                                        color: _isCorrect ? Colors.green : Colors.orange,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        _isCorrect ? '回答正确！' : '再想想',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: _isCorrect ? Colors.green[700] : Colors.orange[700],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    '解析：${content.explanation}',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey[700],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                         ],
                       ),
                     ),
+                  ),
                 ],
               ),
             );
@@ -180,6 +189,11 @@ class _ContentCardDialogState extends State<ContentCardDialog>
         ),
       ),
     );
+  }
+
+  bool _isDuplicateOfQuestion(EducationalContent content) {
+    if (!content.requiresInteraction || content.question == null) return false;
+    return content.content.trim() == content.question!.trim();
   }
 
   Widget _buildQuestion(BuildContext context, EducationalContent content) {

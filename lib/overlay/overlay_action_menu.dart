@@ -53,28 +53,25 @@ class OverlayActionMenu extends StatelessWidget {
       behavior: HitTestBehavior.translucent,
       child: Container(
         alignment: Alignment.bottomCenter,
-        padding: const EdgeInsets.only(bottom: 88),
-        child: GestureDetector(
-          onTap: () {}, // Prevent tap-through to the pet below.
-          child: Container(
-            width: 160,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.95),
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.12),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: actions.map((action) {
-                return _buildActionTile(action);
-              }).toList(),
-            ),
+        padding: const EdgeInsets.only(bottom: 86),
+        child: Container(
+          width: 160,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.95),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.12),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: actions.map((action) {
+              return _buildActionTile(action);
+            }).toList(),
           ),
         ),
       ),
@@ -82,26 +79,23 @@ class OverlayActionMenu extends StatelessWidget {
   }
 
   Widget _buildActionTile(_Action action) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => onActionSelected(action.payload),
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          child: Row(
-            children: [
-              Icon(action.icon, color: action.color, size: 20),
-              const SizedBox(width: 10),
-              Text(
-                action.label,
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Colors.black87,
-                ),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => onActionSelected(action.payload),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        child: Row(
+          children: [
+            Icon(action.icon, color: action.color, size: 18),
+            const SizedBox(width: 10),
+            Text(
+              action.label,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Colors.black87,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

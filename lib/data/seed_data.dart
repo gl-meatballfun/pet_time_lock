@@ -82,6 +82,39 @@ class SeedData {
       requiresInteraction: true,
       estimatedSeconds: 45,
     ),
+    EducationalContent(
+      id: 'poem_006',
+      type: ContentType.poem,
+      title: '题西林壁',
+      content: '横看成岭侧成峰，\n远近高低各不同。\n不识庐山真面目，\n只缘身在此山中。',
+      explanation: '苏轼借游庐山说明当局者迷、旁观者清的道理。',
+      grade: 6,
+      subject: '语文',
+      estimatedSeconds: 45,
+    ),
+    EducationalContent(
+      id: 'english_004',
+      type: ContentType.english,
+      title: '阅读习惯',
+      content: 'Reading is to the mind what exercise is to the body.\n阅读之于心灵，犹如运动之于身体。',
+      grade: 6,
+      subject: '英语',
+      estimatedSeconds: 30,
+    ),
+    EducationalContent(
+      id: 'math_003',
+      type: ContentType.math,
+      title: '百分数应用',
+      content: '某班有 50 名学生，男生占 40%，男生有多少人？',
+      question: '某班有 50 名学生，男生占 40%，男生有多少人？',
+      options: ['15 人', '20 人', '25 人', '30 人'],
+      correctAnswer: '20 人',
+      explanation: '50 × 40% = 50 × 0.4 = 20（人）。',
+      grade: 6,
+      subject: '数学',
+      requiresInteraction: true,
+      estimatedSeconds: 60,
+    ),
 
     // 初中（7-9年级）
     EducationalContent(
@@ -104,7 +137,7 @@ class SeedData {
       estimatedSeconds: 30,
     ),
     EducationalContent(
-      id: 'math_003',
+      id: 'math_004',
       type: ContentType.math,
       title: '一元一次方程',
       content: '解方程：2x + 5 = 13',
@@ -144,7 +177,7 @@ class SeedData {
       estimatedSeconds: 60,
     ),
     EducationalContent(
-      id: 'english_004',
+      id: 'english_005',
       type: ContentType.english,
       title: '高考励志',
       content: 'The future belongs to those who believe in the beauty of their dreams.\n未来属于那些相信梦想之美的人。',
@@ -153,7 +186,7 @@ class SeedData {
       estimatedSeconds: 30,
     ),
     EducationalContent(
-      id: 'math_004',
+      id: 'math_005',
       type: ContentType.math,
       title: '导数基础',
       content: '函数 f(x) = x² 的导数是 f\'(x) = 2x。',

@@ -31,6 +31,7 @@ void main() {
       int healthPoints = 0,
       int growthXp = 0,
       int hunger = 100,
+      int version = 0,
     }) {
       return PetState(
         currentGrade: grade,
@@ -41,6 +42,7 @@ void main() {
         healthPoints: healthPoints,
         growthXp: growthXp,
         hunger: hunger,
+        version: version,
       );
     }
 
@@ -101,6 +103,21 @@ void main() {
         expect(pet.healthPoints, greaterThan(0));
         expect(pet.growthCoins, greaterThan(0));
         expect(pet.growthXp, 50); // 25 * 2
+      },
+    );
+
+    blocTest<PetCubit, PetManagerState>(
+      '更新宠物状态时 version 自增，用于悬浮窗同步',
+      build: () {
+        fakeDb.seedPetState(createPet(version: 3, hunger: 50));
+        return PetCubit(fakeDb, mockPrefs);
+      },
+      act: (cubit) async {
+        await Future.delayed(const Duration(milliseconds: 50));
+        await cubit.feedPet();
+      },
+      verify: (cubit) {
+        expect(cubit.state.petState!.version, greaterThan(3));
       },
     );
 

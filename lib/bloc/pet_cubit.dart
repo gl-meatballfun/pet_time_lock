@@ -356,11 +356,18 @@ class PetCubit extends Cubit<PetManagerState> {
     final didEvolve = evolved.stage != updated.stage;
 
     await _db.updatePetState(evolved);
+    final refreshed = await _db.getPetState();
+    final emitted = refreshed ?? evolved;
+
     emit(state.copyWith(
-      petState: evolved,
+      petState: emitted,
       justEvolved: didEvolve,
       previousStage: didEvolve ? updated.stage : null,
     ));
+
+    // Keep the floating overlay in sync with the latest pet version.
+    OverlayService().refreshOverlayPet(version: emitted.version);
+
     if (didEvolve) {
       OverlayService().showOverlayWithTrigger(OverlayTrigger.evolution);
       emit(state.copyWith(justEvolved: false, previousStage: null));
@@ -371,7 +378,7 @@ class PetCubit extends Cubit<PetManagerState> {
       message: successMessage,
       type: type,
       didEvolve: didEvolve,
-      newStage: evolved.stage,
+      newStage: emitted.stage,
     );
   }
 

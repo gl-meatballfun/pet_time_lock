@@ -11,28 +11,34 @@ import io.flutter.plugin.common.MethodChannel
 /**
  * MethodChannel plugin for overlay-specific operations.
  *
- * This is intentionally lightweight: the actual overlay window is managed by
- * the flutter_overlay_window plugin. This plugin only handles permission checks
- * and bringing the main activity back to the foreground.
+ * The actual overlay window is managed by the flutter_overlay_window plugin.
+ * This plugin handles permission checks, bringing the main activity back to
+ * the foreground, and persisting the overlay position.
  */
 class OverlayPlugin(private val context: Context) : MethodChannel.MethodCallHandler {
 
     companion object {
-        const val CHANNEL = "com.example.pet_time_lock/overlay"
+        const val CHANNEL = Constants.OVERLAY_CHANNEL
     }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
-            "canDrawOverlays" -> {
+            Constants.CAN_DRAW_OVERLAYS -> {
                 result.success(canDrawOverlays())
             }
-            "requestOverlayPermission" -> {
+            Constants.REQUEST_OVERLAY_PERMISSION -> {
                 requestOverlayPermission()
                 result.success(true)
             }
-            "bringAppToForeground" -> {
-                val payload = call.argument<String>("payload")
+            Constants.BRING_APP_TO_FOREGROUND -> {
+                val payload = call.argument<String>(Constants.FIELD_PAYLOAD)
                 bringAppToForeground(payload)
+                result.success(true)
+            }
+            Constants.SAVE_OVERLAY_POSITION -> {
+                val x = call.argument<Double>(Constants.FIELD_X)?.toFloat() ?: 0f
+                val y = call.argument<Double>(Constants.FIELD_Y)?.toFloat() ?: 0f
+                saveOverlayPosition(x, y)
                 result.success(true)
             }
             else -> result.notImplemented()
@@ -61,11 +67,23 @@ class OverlayPlugin(private val context: Context) : MethodChannel.MethodCallHand
     private fun bringAppToForeground(payload: String?) {
         val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
         if (intent != null) {
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            intent.addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or
+                Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                Intent.FLAG_ACTIVITY_SINGLE_TOP
+            )
             if (payload != null) {
-                intent.putExtra("overlay_payload", payload)
+                intent.putExtra(Constants.FIELD_PAYLOAD, payload)
             }
             context.startActivity(intent)
         }
+    }
+
+    private fun saveOverlayPosition(x: Float, y: Float) {
+        context.getSharedPreferences(Constants.OVERLAY_ENABLED, Context.MODE_PRIVATE)
+            .edit()
+            .putFloat(Constants.OVERLAY_X, x)
+            .putFloat(Constants.OVERLAY_Y, y)
+            .apply()
     }
 }

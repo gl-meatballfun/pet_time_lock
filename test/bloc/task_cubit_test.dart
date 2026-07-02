@@ -48,6 +48,29 @@ void main() {
       expect(cubit.state.tasks.first.currentCount, 1);
     });
 
+    test('incrementTaskProgress 在任务尚未加载完成时也能正确累加进度', () async {
+      fakeDb.seedDailyTasks([
+        DailyTask(
+          id: 'task_001',
+          title: '理科挑战',
+          description: '',
+          taskType: TaskType.answerQuestions,
+          subject: 'science',
+          targetCount: 2,
+          rewardGrowthCoins: 15,
+          assignedDate: today,
+        ),
+      ]);
+
+      final cubit = TaskCubit(fakeDb);
+      // 不等待 init 完成，直接调用增量，模拟用户快速答题场景
+      expect(cubit.state.status, isNot(TaskStatus.loaded));
+      await cubit.incrementTaskProgress(TaskType.answerQuestions, subject: '数学');
+
+      expect(cubit.state.status, TaskStatus.loaded);
+      expect(cubit.state.tasks.first.currentCount, 1);
+    });
+
     test('incrementTaskProgress 达到目标后标记完成', () async {
       fakeDb.seedDailyTasks([
         DailyTask(

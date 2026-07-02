@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -9,6 +11,12 @@ import 'seed_data.dart';
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
   static Database? _database;
+
+  /// Mutex protecting concurrent pet-state reads/writes across the main app
+  /// and the overlay engine. SQLite in serialized mode is safe, but this
+  /// prevents race conditions when multiple Flutter engines read the pet,
+  /// mutate it, and write it back without re-reading.
+  static final _petStateLock = Lock();
 
   DatabaseHelper._init();
 
@@ -24,7 +32,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -134,6 +142,11 @@ class DatabaseHelper {
 
       await _seedShopItems(db);
     }
+
+    if (oldVersion < 4) {
+      // 新增宠物状态版本号，用于悬浮窗跨引擎同步
+      await db.execute('ALTER TABLE pet_state ADD COLUMN version INTEGER DEFAULT 0');
+    }
   }
 
   Future _createDB(Database db, int version) async {
@@ -155,7 +168,8 @@ class DatabaseHelper {
         appearance_json TEXT DEFAULT '{}',
         current_grade INTEGER NOT NULL,
         created_at TEXT,
-        last_updated_at TEXT
+        last_updated_at TEXT,
+        version INTEGER DEFAULT 0
       )
     ''');
 
@@ -356,20 +370,28 @@ class DatabaseHelper {
   }
 
   Future<PetState> createPetState(int grade, {String? name}) async {
-    final db = await database;
-    final petState = PetState(currentGrade: grade, name: name ?? '小宠');
-    await db.insert('pet_state', petState.toMap());
-    return petState;
+    return await _petStateLock.synchronized(() async {
+      final db = await database;
+      final petState = PetState(currentGrade: grade, name: name ?? '小宠');
+      await db.insert('pet_state', petState.toMap());
+      return petState;
+    });
   }
 
   Future<int> updatePetState(PetState petState) async {
-    final db = await database;
-    return await db.update(
-      'pet_state',
-      petState.copyWith(lastUpdatedAt: DateTime.now()).toMap(),
-      where: 'id = ?',
-      whereArgs: [petState.id],
-    );
+    return await _petStateLock.synchronized(() async {
+      final db = await database;
+      final updated = petState.copyWith(
+        lastUpdatedAt: DateTime.now(),
+        version: petState.version + 1,
+      );
+      return await db.update(
+        'pet_state',
+        updated.toMap(),
+        where: 'id = ?',
+        whereArgs: [updated.id],
+      );
+    });
   }
 
   // Educational Content
@@ -759,5 +781,27 @@ class DatabaseHelper {
 
   Future close() async {
     (await database).close();
+  }
+}
+
+/// A simple asynchronous mutual-exclusion lock.
+///
+/// Acquisitions are processed sequentially; callers that try to acquire while
+/// the lock is held are queued and resumed once the current holder releases.
+class Lock {
+  Future<void>? _pending;
+
+  Future<T> synchronized<T>(Future<T> Function() action) async {
+    final previous = _pending;
+    final completer = Completer<void>();
+    _pending = completer.future;
+    try {
+      if (previous != null) {
+        await previous;
+      }
+      return await action();
+    } finally {
+      completer.complete();
+    }
   }
 }

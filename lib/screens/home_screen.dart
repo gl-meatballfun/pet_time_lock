@@ -105,7 +105,7 @@ class _HomeContentState extends State<_HomeContent> {
         previous.happiness != current.happiness ||
         previous.hunger != current.hunger ||
         previous.stage != current.stage) {
-      OverlayService().refreshOverlayPet();
+      OverlayService().refreshOverlayPet(version: current.version);
     }
     _previousPetState = current;
   }

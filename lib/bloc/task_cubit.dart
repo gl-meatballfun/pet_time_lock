@@ -138,7 +138,16 @@ class TaskCubit extends Cubit<TaskState> {
   }
 
   /// 增加指定类型任务的进度。subject 仅对 answerQuestions 类型有效。
+  ///
+  /// 如果任务尚未加载（例如用户在 App 启动后立即答题），会先触发加载/生成，
+  /// 避免进度丢失。
   Future<void> incrementTaskProgress(TaskType type, {String? subject}) async {
+    if (state.status == TaskStatus.error) return;
+
+    if (state.status != TaskStatus.loaded) {
+      await loadOrGenerateTasks();
+    }
+
     if (state.status != TaskStatus.loaded) return;
 
     final today = DatabaseHelper.formatDate(DateTime.now());

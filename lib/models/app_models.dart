@@ -86,6 +86,11 @@ class PetState {
   final DateTime createdAt;
   final DateTime lastUpdatedAt;
 
+  /// Monotonically increasing version used to keep the floating overlay pet
+  /// in sync with the main app across two Flutter engines. Each mutation
+  /// increments this value.
+  final int version;
+
   PetState({
     this.id = 1,
     this.stage = 0,
@@ -104,6 +109,7 @@ class PetState {
     this.currentGrade = 1,
     DateTime? createdAt,
     DateTime? lastUpdatedAt,
+    this.version = 0,
   })  : createdAt = createdAt ?? DateTime.now(),
         lastUpdatedAt = lastUpdatedAt ?? DateTime.now();
 
@@ -125,6 +131,7 @@ class PetState {
     int? currentGrade,
     DateTime? createdAt,
     DateTime? lastUpdatedAt,
+    int? version,
   }) {
     return PetState(
       id: id ?? this.id,
@@ -144,6 +151,7 @@ class PetState {
       currentGrade: currentGrade ?? this.currentGrade,
       createdAt: createdAt ?? this.createdAt,
       lastUpdatedAt: lastUpdatedAt ?? this.lastUpdatedAt,
+      version: version ?? this.version,
     );
   }
 
@@ -166,6 +174,7 @@ class PetState {
       'current_grade': currentGrade,
       'created_at': createdAt.toIso8601String(),
       'last_updated_at': lastUpdatedAt.toIso8601String(),
+      'version': version,
     };
   }
 
@@ -188,6 +197,7 @@ class PetState {
       currentGrade: map['current_grade'] as int? ?? 1,
       createdAt: DateTime.tryParse(map['created_at'] as String? ?? '') ?? DateTime.now(),
       lastUpdatedAt: DateTime.tryParse(map['last_updated_at'] as String? ?? '') ?? DateTime.now(),
+      version: map['version'] as int? ?? 0,
     );
   }
 

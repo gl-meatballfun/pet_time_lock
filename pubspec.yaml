@@ -73,6 +73,10 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^4.0.0
 
+dependency_overrides:
+  flutter_overlay_window:
+    path: ./plugins/flutter_overlay_window
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
