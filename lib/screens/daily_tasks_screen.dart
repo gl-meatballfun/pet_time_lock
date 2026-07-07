@@ -150,7 +150,9 @@ class DailyTasksScreen extends StatelessWidget {
                         ),
                       ],
                     ),
-                  ),
+                  )
+                else
+                  _buildRewardBadge(task),
               ],
             ),
             const SizedBox(height: 6),
@@ -214,6 +216,29 @@ class DailyTasksScreen extends StatelessWidget {
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRewardBadge(DailyTask task) {
+    final parts = <String>[];
+    if (task.rewardGrowthCoins > 0) parts.add('📌${task.rewardGrowthCoins}');
+    if (task.rewardHealthPoints > 0) parts.add('❤️${task.rewardHealthPoints}');
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.amber[100],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.amber.withOpacity(0.3)),
+      ),
+      child: Text(
+        parts.isEmpty ? '暂无奖励' : parts.join(' '),
+        style: TextStyle(
+          fontSize: 12,
+          color: Colors.amber[800],
+          fontWeight: FontWeight.bold,
         ),
       ),
     );

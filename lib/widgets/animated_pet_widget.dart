@@ -34,8 +34,11 @@ class _AnimatedPetWidgetState extends State<AnimatedPetWidget>
     with TickerProviderStateMixin {
   late AnimationController _idleController;
   late AnimationController _evolutionController;
+  late AnimationController _bubbleShakeController;
   final List<_FloatingParticle> _particles = [];
   double _tapScale = 1.0;
+  double _bubbleScale = 1.0;
+  String _lastMessage = '';
   int _particleKey = 0;
 
   @override
@@ -53,6 +56,13 @@ class _AnimatedPetWidgetState extends State<AnimatedPetWidget>
     if (widget.showEvolution) {
       _evolutionController.forward(from: 0);
     }
+
+    _bubbleShakeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+
+    _lastMessage = _getPetMessage();
   }
 
   @override
@@ -61,12 +71,25 @@ class _AnimatedPetWidgetState extends State<AnimatedPetWidget>
     if (widget.showEvolution && !oldWidget.showEvolution) {
       _evolutionController.forward(from: 0);
     }
+
+    final currentMessage = _getPetMessage();
+    if (currentMessage != _lastMessage) {
+      _lastMessage = currentMessage;
+      _pulseBubble();
+    }
+  }
+
+  void _pulseBubble() async {
+    setState(() => _bubbleScale = 1.15);
+    await Future.delayed(const Duration(milliseconds: 120));
+    if (mounted) setState(() => _bubbleScale = 1.0);
   }
 
   @override
   void dispose() {
     _idleController.dispose();
     _evolutionController.dispose();
+    _bubbleShakeController.dispose();
     super.dispose();
   }
 
@@ -74,6 +97,7 @@ class _AnimatedPetWidgetState extends State<AnimatedPetWidget>
     widget.onTap?.call();
     _spawnParticles(type: widget.interactionType);
     _bounce();
+    _shakeBubble();
   }
 
   void _handleDrag(DragUpdateDetails details) {
@@ -81,6 +105,10 @@ class _AnimatedPetWidgetState extends State<AnimatedPetWidget>
     if (details.delta.distance > 2) {
       _spawnParticles(type: widget.interactionType);
     }
+  }
+
+  void _shakeBubble() {
+    _bubbleShakeController.forward(from: 0);
   }
 
   void _bounce() async {
@@ -266,27 +294,53 @@ class _AnimatedPetWidgetState extends State<AnimatedPetWidget>
             // Speech bubble
             Positioned(
               top: -70,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
+              child: AnimatedBuilder(
+                animation: _bubbleShakeController,
+                builder: (context, child) {
+                  final shake = sin(_bubbleShakeController.value * pi * 8) * 4 * (1 - _bubbleShakeController.value);
+                  return Transform.translate(
+                    offset: Offset(shake, 0),
+                    child: child,
+                  );
+                },
+                child: AnimatedScale(
+                  scale: _bubbleScale,
+                  duration: const Duration(milliseconds: 120),
+                  curve: Curves.elasticOut,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
                     ),
-                  ],
-                ),
-                child: Text(
-                  _getPetMessage(),
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Colors.black87,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          _getMoodColor().withOpacity(0.15),
+                          Colors.white.withOpacity(0.95),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: _getMoodColor().withOpacity(0.2),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: _getMoodColor().withOpacity(0.25),
+                          blurRadius: 14,
+                          spreadRadius: 1,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      _getPetMessage(),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.black87,
+                      ),
+                    ),
                   ),
                 ),
               ),

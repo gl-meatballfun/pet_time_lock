@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../bloc/content_cubit.dart';
@@ -20,6 +21,7 @@ class _ContentCardDialogState extends State<ContentCardDialog>
   late AnimationController _controller;
   bool _answered = false;
   bool _isCorrect = false;
+  bool _focusMode = false;
 
   @override
   void initState() {
@@ -33,8 +35,26 @@ class _ContentCardDialogState extends State<ContentCardDialog>
 
   @override
   void dispose() {
+    _restoreSystemUi();
     _controller.dispose();
     super.dispose();
+  }
+
+  void _setFocusMode(bool enabled) {
+    if (_focusMode == enabled) return;
+    setState(() => _focusMode = enabled);
+    if (enabled) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    } else {
+      _restoreSystemUi();
+    }
+  }
+
+  void _restoreSystemUi() {
+    SystemChrome.setEnabledSystemUIMode(
+      SystemUiMode.manual,
+      overlays: SystemUiOverlay.values,
+    );
   }
 
   @override
@@ -77,32 +97,8 @@ class _ContentCardDialogState extends State<ContentCardDialog>
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _typeColor(content.type).withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          _typeLabel(content.type),
-                          style: TextStyle(
-                            color: _typeColor(content.type),
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ],
-                  ),
+                  if (!_focusMode) _buildHeader(content),
+                  if (_focusMode) _buildFocusExitBar(),
                   const SizedBox(height: 20),
                   Text(
                     content.title,
@@ -196,6 +192,67 @@ class _ContentCardDialogState extends State<ContentCardDialog>
     return content.content.trim() == content.question!.trim();
   }
 
+  Widget _buildHeader(EducationalContent content) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: _typeColor(content.type).withOpacity(0.15),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            _typeLabel(content.type),
+            style: TextStyle(
+              color: _typeColor(content.type),
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Tooltip(
+              message: '开启专注模式',
+              child: IconButton(
+                icon: Icon(
+                  Icons.center_focus_strong,
+                  color: _focusMode ? Colors.blue : Colors.grey[600],
+                ),
+                onPressed: () => _setFocusMode(true),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: () {
+                _restoreSystemUi();
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFocusExitBar() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        TextButton.icon(
+          onPressed: () => _setFocusMode(false),
+          icon: const Icon(Icons.fullscreen_exit, size: 18),
+          label: const Text('退出专注'),
+          style: TextButton.styleFrom(
+            foregroundColor: Colors.grey[600],
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildQuestion(BuildContext context, EducationalContent content) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -264,7 +321,10 @@ class _ContentCardDialogState extends State<ContentCardDialog>
       taskCubit.incrementTaskProgress(TaskType.completeAnyContent);
 
       Future.delayed(const Duration(milliseconds: 1200), () {
-        if (context.mounted) Navigator.pop(context);
+        if (context.mounted) {
+          _restoreSystemUi();
+          Navigator.pop(context);
+        }
       });
     } else {
       DatabaseHelper.instance.insertOrUpdateWrongAnswer(
