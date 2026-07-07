@@ -35,6 +35,10 @@ class OverlayConstants {
       'trigger_time_slot_block_enabled';
   static const String triggerComplianceRewardEnabled =
       'trigger_compliance_reward_enabled';
+  static const String triggerFeedEnabled = 'trigger_feed_enabled';
+  static const String triggerPlayEnabled = 'trigger_play_enabled';
+  static const String triggerPetEnabled = 'trigger_pet_enabled';
+  static const String triggerLearnEnabled = 'trigger_learn_enabled';
 
   // Overlay payload actions (sent to / from the overlay engine)
   static const String actionRefreshPet = 'refresh_pet';

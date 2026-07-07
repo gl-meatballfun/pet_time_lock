@@ -223,6 +223,10 @@ class OverlayService {
       OverlayTrigger.evolution => OverlayConstants.triggerEvolutionEnabled,
       OverlayTrigger.timeSlotBlock => OverlayConstants.triggerTimeSlotBlockEnabled,
       OverlayTrigger.complianceReward => OverlayConstants.triggerComplianceRewardEnabled,
+      OverlayTrigger.feed => OverlayConstants.triggerFeedEnabled,
+      OverlayTrigger.play => OverlayConstants.triggerPlayEnabled,
+      OverlayTrigger.pet => OverlayConstants.triggerPetEnabled,
+      OverlayTrigger.learn => OverlayConstants.triggerLearnEnabled,
     };
     return prefs.getBool(key) ?? true;
   }
@@ -236,6 +240,10 @@ class OverlayService {
       OverlayTrigger.evolution => OverlayConstants.triggerEvolutionEnabled,
       OverlayTrigger.timeSlotBlock => OverlayConstants.triggerTimeSlotBlockEnabled,
       OverlayTrigger.complianceReward => OverlayConstants.triggerComplianceRewardEnabled,
+      OverlayTrigger.feed => OverlayConstants.triggerFeedEnabled,
+      OverlayTrigger.play => OverlayConstants.triggerPlayEnabled,
+      OverlayTrigger.pet => OverlayConstants.triggerPetEnabled,
+      OverlayTrigger.learn => OverlayConstants.triggerLearnEnabled,
     };
     await prefs.setBool(key, enabled);
   }

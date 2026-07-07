@@ -30,7 +30,11 @@ enum OverlayTrigger {
   overLimit,
   evolution,
   timeSlotBlock,
-  complianceReward;
+  complianceReward,
+  feed,
+  play,
+  pet,
+  learn;
 
   String get message {
     return switch (this) {
@@ -39,6 +43,10 @@ enum OverlayTrigger {
       OverlayTrigger.evolution => '我进化啦！快回来看看~',
       OverlayTrigger.timeSlotBlock => '现在是限制时段，不要玩啦~',
       OverlayTrigger.complianceReward => '今天表现超棒！所有限额都遵守了~',
+      OverlayTrigger.feed => ' yummy~ 吃饱啦，更有精神学习啦！',
+      OverlayTrigger.play => '玩得真开心！谢谢主人陪我~',
+      OverlayTrigger.pet => '被摸摸好舒服，心情变好了呢~',
+      OverlayTrigger.learn => '又学会新知识啦，主人好棒！',
     };
   }
 

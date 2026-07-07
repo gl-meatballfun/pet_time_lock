@@ -40,6 +40,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _triggerEvolution = true;
   bool _triggerTimeSlotBlock = true;
   bool _triggerComplianceReward = true;
+  bool _triggerFeed = true;
+  bool _triggerPlay = true;
+  bool _triggerPet = true;
+  bool _triggerLearn = true;
   bool _monitoringEnabled = true;
   int _monitoringIntervalSeconds = 30;
   bool _monitoringSupported = false;
@@ -81,6 +85,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           prefs.getBool(OverlayConstants.triggerTimeSlotBlockEnabled) ?? true;
       _triggerComplianceReward =
           prefs.getBool(OverlayConstants.triggerComplianceRewardEnabled) ?? true;
+      _triggerFeed = prefs.getBool(OverlayConstants.triggerFeedEnabled) ?? true;
+      _triggerPlay = prefs.getBool(OverlayConstants.triggerPlayEnabled) ?? true;
+      _triggerPet = prefs.getBool(OverlayConstants.triggerPetEnabled) ?? true;
+      _triggerLearn = prefs.getBool(OverlayConstants.triggerLearnEnabled) ?? true;
       _monitoringEnabled = monitorService.isEnabled;
       _monitoringIntervalSeconds = monitorService.foregroundIntervalSeconds;
       _monitoringSupported = monitorService.isSupported;
@@ -438,6 +446,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       setState(() => _triggerComplianceReward = value);
                       await OverlayService().setTriggerEnabled(
                         OverlayTrigger.complianceReward,
+                        value,
+                      );
+                    },
+                  ),
+                  SwitchListTile(
+                    title: const Text('喂食反馈'),
+                    subtitle: const Text('喂食后悬浮宠物弹出互动反馈'),
+                    value: _triggerFeed,
+                    onChanged: (value) async {
+                      setState(() => _triggerFeed = value);
+                      await OverlayService().setTriggerEnabled(
+                        OverlayTrigger.feed,
+                        value,
+                      );
+                    },
+                  ),
+                  SwitchListTile(
+                    title: const Text('玩耍反馈'),
+                    subtitle: const Text('玩耍后悬浮宠物弹出互动反馈'),
+                    value: _triggerPlay,
+                    onChanged: (value) async {
+                      setState(() => _triggerPlay = value);
+                      await OverlayService().setTriggerEnabled(
+                        OverlayTrigger.play,
+                        value,
+                      );
+                    },
+                  ),
+                  SwitchListTile(
+                    title: const Text('抚摸反馈'),
+                    subtitle: const Text('抚摸后悬浮宠物弹出互动反馈'),
+                    value: _triggerPet,
+                    onChanged: (value) async {
+                      setState(() => _triggerPet = value);
+                      await OverlayService().setTriggerEnabled(
+                        OverlayTrigger.pet,
+                        value,
+                      );
+                    },
+                  ),
+                  SwitchListTile(
+                    title: const Text('学习反馈'),
+                    subtitle: const Text('答题学习后悬浮宠物弹出互动反馈'),
+                    value: _triggerLearn,
+                    onChanged: (value) async {
+                      setState(() => _triggerLearn = value);
+                      await OverlayService().setTriggerEnabled(
+                        OverlayTrigger.learn,
                         value,
                       );
                     },

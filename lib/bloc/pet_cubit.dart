@@ -450,6 +450,11 @@ class PetCubit extends Cubit<PetManagerState> {
     if (didEvolve) {
       OverlayService().showOverlayWithTrigger(OverlayTrigger.evolution);
       emit(state.copyWith(justEvolved: false, previousStage: null));
+    } else if (successMessage.isNotEmpty) {
+      final trigger = _triggerForType(type);
+      if (trigger != null) {
+        OverlayService().showOverlayWithTrigger(trigger, message: successMessage);
+      }
     }
 
     return InteractionResult(
@@ -459,6 +464,16 @@ class PetCubit extends Cubit<PetManagerState> {
       didEvolve: didEvolve,
       newStage: emitted.stage,
     );
+  }
+
+  OverlayTrigger? _triggerForType(InteractionType type) {
+    return switch (type) {
+      InteractionType.feed => OverlayTrigger.feed,
+      InteractionType.play => OverlayTrigger.play,
+      InteractionType.pet => OverlayTrigger.pet,
+      InteractionType.learn => OverlayTrigger.learn,
+      InteractionType.focus => OverlayTrigger.focusComplete,
+    };
   }
 
   Future<PetState> _checkGrowth(PetState pet) async {
