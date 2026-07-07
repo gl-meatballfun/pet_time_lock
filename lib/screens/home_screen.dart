@@ -443,22 +443,29 @@ class _HomeContentState extends State<_HomeContent> {
   }
 
   Widget _buildPetArea(String equippedAccessory) {
-    return AnimatedPetWidget(
-      petState: widget.petState,
-      isOverLimit: _showOverLimit,
-      interactionType: InteractionType.pet,
-      equippedAccessory: equippedAccessory.isEmpty ? null : equippedAccessory,
-      onTap: () async {
-        final petCubit = context.read<PetCubit>();
-        final contentCubit = context.read<ContentCubit>();
-        final result = await petCubit.petThePet();
-        _showInteractionResult(result);
-        if (mounted && result.success) {
-          contentCubit.showRandomContent(widget.petState.currentGrade);
-          _showContentCard(context);
-        }
-      },
-      onDrag: () => context.read<PetCubit>().petThePet(),
+    return Container(
+      alignment: Alignment.center,
+      padding: const EdgeInsets.only(top: 32, bottom: 8),
+      child: Transform.scale(
+        scale: 0.85,
+        child: AnimatedPetWidget(
+          petState: widget.petState,
+          isOverLimit: _showOverLimit,
+          interactionType: InteractionType.pet,
+          equippedAccessory: equippedAccessory.isEmpty ? null : equippedAccessory,
+          onTap: () async {
+            final petCubit = context.read<PetCubit>();
+            final contentCubit = context.read<ContentCubit>();
+            final result = await petCubit.petThePet();
+            _showInteractionResult(result);
+            if (mounted && result.success) {
+              contentCubit.showRandomContent(widget.petState.currentGrade);
+              _showContentCard(context);
+            }
+          },
+          onDrag: () => context.read<PetCubit>().petThePet(),
+        ),
+      ),
     );
   }
 
